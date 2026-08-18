@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>長興工程行 - Firebase 雲端工程管理與報價系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase 9+ App & Firestore SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #printable-area, #printable-area * { visibility: visible; }
+      #printable-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    // --- 圖示 SVG ---
+    const IconDashboard = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>;
+    const IconUsers = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>;
+    const IconPackage = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>;
+    const IconFileText = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>;
+    const IconDollarSign = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>;
+    const IconSettings = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>;
+    const IconPlus = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>;
+    const IconTrash = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>;
+    const IconPrinter = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>;
+    const IconCloud = () => <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>;
+
+    const defaultCompany = {
+      name: "長興工程行",
+      taxId: "-",
+      contact: "巫長恩",
+      phone: "0926-967-055",
+      email: "changxing.eng@gmail.com",
+      address: "新北市中和區捷運路8-21號12F",
+      bankName: "台灣銀行 (004)",
+      bankAccount: "0123-4567-8901",
+      bankOwner: "長興工程行 巫長恩",
+      logoUrl: "",
+      password: "123"
+    };
+
+    function App() {
+      // Firebase 設定
+      const [fbConfigStr, setFbConfigStr] = useState(() => localStorage.getItem("firebase_config") || "");
+      const [db, setDb] = useState(null);
+      const [cloudStatus, setCloudStatus] = useState("正在連線 Firebase...");
+
+      const [company, setCompany] = useState(defaultCompany);
+      const [customers, setCustomers] = useState([]);
+      const [products, setProducts] = useState([]);
+      const [quotations, setQuotations] = useState([]);
+      const [transactions, setTransactions] = useState([]);
+
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [isQuoModalOpen, setIsQuoModalOpen] = useState(false);
+      const [previewQuo, setPreviewQuo] = useState(null);
+      const [customerMode, setCustomerMode] = useState("select");
+      const [customCustomer, setCustomCustomer] = useState({ name: "", taxId: "", contact: "", phone: "", address: "" });
+
+      const [quoteForm, setQuoteForm] = useState({
+        projectName: "",
+        customerId: "",
+        date: new Date().toISOString().split("T")[0],
+        projectStatus: "施工中",
+        startDate: new Date().toISOString().split("T")[0],
+        endDate: "",
+        validity: "報價有效期 15 天",
+        delivery: "簽約確認後 14 個工作日內完工交付",
+        discount: 0,
+        items: []
+      });
+
+      // 初始化 Firebase & 即時同步監聽
+      useEffect(() => {
+        if (!fbConfigStr) {
+          setCloudStatus("尚未配置 Firebase 金鑰");
+          return;
+        }
+        try {
+          const config = JSON.parse(fbConfigStr);
+          if (!firebase.apps.length) {
+            firebase.initializeApp(config);
+          }
+          const firestore = firebase.firestore();
+          setDb(firestore);
+          setCloudStatus("Firebase 雲端已連線 (即時同步中)");
+
+          // 1. 公司設定監聽
+          firestore.collection("settings").doc("company").onSnapshot(doc => {
+            if (doc.exists) setCompany(doc.data());
+          });
+
+          // 2. 客戶名冊監聽
+          firestore.collection("customers").onSnapshot(snap => {
+            setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+
+          // 3. 工項庫存監聽
+          firestore.collection("products").onSnapshot(snap => {
+            setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+
+          // 4. 報價單監聽
+          firestore.collection("quotations").onSnapshot(snap => {
+            setQuotations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+
+          // 5. 財務明細監聽
+          firestore.collection("transactions").onSnapshot(snap => {
+            setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+
+        } catch (e) {
+          console.error(e);
+          setCloudStatus("Firebase 設定解析錯誤，請檢查 JSON 格式");
+        }
+      }, [fbConfigStr]);
+
+      // 雲端資料庫操作函式
+      const saveCompanyToCloud = async (data) => {
+        if (db) await db.collection("settings").doc("company").set(data);
+      };
+
+      const saveQuotationToCloud = async (quo) => {
+        if (db) await db.collection("quotations").doc(quo.id).set(quo);
+      };
+
+      const deleteQuotationFromCloud = async (id) => {
+        if (db) await db.collection("quotations").doc(id).delete();
+      };
+
+      const saveCustomerToCloud = async (cust) => {
+        if (db) await db.collection("customers").doc(cust.id).set(cust);
+      };
+
+      const deleteCustomerFromCloud = async (id) => {
+        if (db) await db.collection("customers").doc(id).delete();
+      };
+
+      const saveTransactionToCloud = async (tx) => {
+        if (db) await db.collection("transactions").doc(tx.id).set(tx);
+      };
+
+      const deleteTransactionFromCloud = async (id) => {
+        if (db) await db.collection("transactions").doc(id).delete();
+      };
+
+      // 計算金額與毛利
+      const calculateQuoteStats = (items, discount) => {
+        const subtotal = items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0);
+        const totalCost = items.reduce((sum, it) => sum + (Number(it.cost) || 0) * (Number(it.quantity) || 0), 0);
+        const disc = Number(discount) || 0;
+        const taxable = Math.max(0, subtotal - disc);
+        const tax = Math.round(taxable * 0.05);
+        const total = taxable + tax;
+        const grossProfit = taxable - totalCost;
+        const grossMargin = taxable > 0 ? ((grossProfit / taxable) * 100).toFixed(1) : 0;
+        return { subtotal, totalCost, tax, total, grossProfit, grossMargin };
+      };
+
+      const handleAddCustomItem = () => {
+        setQuoteForm(prev => ({
+          ...prev,
+          items: [...prev.items, {
+            id: `item_${Date.now()}`,
+            name: "自訂工程項目 / 材料說明",
+            unit: "式",
+            cost: 0,
+            price: 0,
+            quantity: 1
+          }]
+        }));
+      };
+
+      const handleSaveQuotation = async () => {
+        let finalCustomerId = quoteForm.customerId;
+
+        if (customerMode === "custom") {
+          if (!customCustomer.name.trim()) {
+            alert("請填寫業主名稱！");
+            return;
+          }
+          const newCust = {
+            id: `c_${Date.now()}`,
+            name: customCustomer.name.trim(),
+            taxId: customCustomer.taxId.trim() || "-",
+            contact: customCustomer.contact.trim() || "-",
+            phone: customCustomer.phone.trim() || "-",
+            email: "-",
+            address: customCustomer.address.trim() || "-",
+            paymentTerm: "完工付清",
+            note: "開單時自動建立"
+          };
+          await saveCustomerToCloud(newCust);
+          finalCustomerId = newCust.id;
+        }
+
+        if (!finalCustomerId) {
+          alert("請選擇業主！");
+          return;
+        }
+
+        if (quoteForm.items.length === 0) {
+          alert("請至少加入一項工項！");
+          return;
+        }
+
+        const { subtotal, totalCost, tax, total } = calculateQuoteStats(quoteForm.items, quoteForm.discount);
+        const newQuo = {
+          id: `q_${Date.now()}`,
+          no: `QUO-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(3, "0")}`,
+          projectName: quoteForm.projectName.trim() || `${customers.find(c => c.id === finalCustomerId)?.name || "案場"}工程`,
+          customerId: finalCustomerId,
+          date: quoteForm.date,
+          projectStatus: quoteForm.projectStatus || "施工中",
+          startDate: quoteForm.startDate || quoteForm.date,
+          endDate: quoteForm.endDate || "",
+          validity: quoteForm.validity,
+          delivery: quoteForm.delivery,
+          items: quoteForm.items,
+          subtotal,
+          totalCost,
+          discount: Number(quoteForm.discount),
+          tax,
+          total,
+          status: "已成交",
+          syncedToFinance: false
+        };
+
+        await saveQuotationToCloud(newQuo);
+        setIsQuoModalOpen(false);
+        setQuoteForm({ projectName: "", customerId: "", date: new Date().toISOString().split("T")[0], projectStatus: "施工中", startDate: new Date().toISOString().split("T")[0], endDate: "", validity: "報價有效期 15 天", delivery: "簽約確認後 14 個工作日內完工交付", discount: 0, items: [] });
+        alert("已成功儲存至 Google Firebase 雲端資料庫！");
+      };
+
+      const runningProjects = quotations.filter(q => q.projectStatus === "施工中");
+      const upcomingProjects = quotations.filter(q => q.projectStatus === "預計施作" || (q.status === "待回覆" && q.projectStatus !== "已完工"));
+
+      return (
+        <div className="flex h-screen overflow-hidden">
+          {/* 側邊導航 */}
+          <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 no-print">
+            <div>
+              <div className="flex items-center gap-3 px-2 py-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded bg-blue-600 font-bold flex items-center justify-center text-white text-sm">長興</div>
+                <div>
+                  <div className="font-bold text-base text-white">{company.name}</div>
+                  <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
+                    <IconCloud /> Firebase 雲端即時連線
+                  </div>
+                </div>
+              </div>
+              <nav className="mt-6 space-y-1">
+                {[
+                  { id: "dashboard", label: "營運與工程儀表板", icon: <IconDashboard /> },
+                  { id: "quotations", label: "工程報價單管理", icon: <IconFileText /> },
+                  { id: "customers", label: "客戶與業主管理", icon: <IconUsers /> },
+                  { id: "finance", label: "財務收支管理", icon: <IconDollarSign /> },
+                  { id: "settings", label: "公司設定 / Firebase 金鑰", icon: <IconSettings /> },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            <div className="text-[11px] text-slate-400 text-center bg-slate-800/80 p-2.5 rounded-lg border border-slate-700">
+              {cloudStatus}
+            </div>
+          </aside>
+
+          {/* 主要工作區 */}
+          <main className="flex-1 overflow-y-auto p-8 no-print">
+            {/* 1. 儀表板 */}
+            {activeTab === "dashboard" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">{company.name} - 營運與工程儀表板</h2>
+                    <p className="text-sm text-slate-500 mt-0.5">所有資料已同步至 Firebase 雲端，多裝置即時連線</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCustomerMode("select");
+                      setIsQuoModalOpen(true);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow"
+                  >
+                    <IconPlus /> 開立工程報價單 / 排程
+                  </button>
+                </div>
+
+                {/* 看板卡片 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white p-5 rounded-xl border-l-4 border-l-blue-600 border border-slate-200 shadow-sm">
+                    <div className="text-xs font-bold text-blue-600">⚡ 目前施工中的工程案場 ({runningProjects.length})</div>
+                    <div className="text-3xl font-black text-slate-900 mt-2">
+                      NT$ {runningProjects.reduce((sum, p) => sum + p.total, 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border-l-4 border-l-amber-500 border border-slate-200 shadow-sm">
+                    <div className="text-xs font-bold text-amber-600">⏳ 預計要做的工程 ({upcomingProjects.length})</div>
+                    <div className="text-3xl font-black text-slate-900 mt-2">
+                      NT$ {upcomingProjects.reduce((sum, p) => sum + p.total, 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 工程列表 */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                    <h3 className="font-bold text-sm text-blue-900 border-b pb-2">施工中工程清單</h3>
+                    {runningProjects.map(p => (
+                      <div key={p.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-xs">
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">{p.projectName}</div>
+                          <div className="text-slate-500 mt-0.5">工期: {p.startDate} ~ {p.endDate || "完工止"}</div>
+                        </div>
+                        <div className="text-right font-bold text-blue-600">NT$ {p.total.toLocaleString()}</div>
+                      </div>
+                    ))}
+                    {runningProjects.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前無施工中工程</div>}
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                    <h3 className="font-bold text-sm text-amber-900 border-b pb-2">預計施作工程清單</h3>
+                    {upcomingProjects.map(p => (
+                      <div key={p.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-xs">
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">{p.projectName}</div>
+                          <div className="text-slate-500 mt-0.5">預計進場: {p.startDate}</div>
+                        </div>
+                        <div className="text-right font-bold text-amber-600">NT$ {p.total.toLocaleString()}</div>
+                      </div>
+                    ))}
+                    {upcomingProjects.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前無排程中工程</div>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. 報價單管理 */}
+            {activeTab === "quotations" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">工程報價單管理 (Firebase 雲端同步)</h2>
+                  <button
+                    onClick={() => {
+                      setCustomerMode("select");
+                      setIsQuoModalOpen(true);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 開立新工程報價單
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">單號</th>
+                        <th className="p-4">工程名稱</th>
+                        <th className="p-4">業主</th>
+                        <th className="p-4">進度</th>
+                        <th className="p-4 text-right">總金額 (含稅)</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {quotations.map(q => (
+                        <tr key={q.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-mono font-bold text-blue-600">{q.no}</td>
+                          <td className="p-4 font-bold text-slate-900">{q.projectName}</td>
+                          <td className="p-4">{customers.find(c => c.id === q.customerId)?.name || "-"}</td>
+                          <td className="p-4 font-semibold text-xs text-blue-700">{q.projectStatus}</td>
+                          <td className="p-4 text-right font-bold">NT$ {q.total.toLocaleString()}</td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <button onClick={() => setPreviewQuo(q)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">
+                                預覽列印
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`確定要從 Firebase 刪除報價單「${q.no}」嗎？`)) {
+                                    await deleteQuotationFromCloud(q.id);
+                                  }
+                                }}
+                                className="text-rose-500 hover:text-rose-700 p-1"
+                              >
+                                <IconTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 3. 客戶管理 */}
+            {activeTab === "customers" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">客戶與業主名冊</h2>
+                  <button
+                    onClick={() => {
+                      const name = prompt("業主/公司名稱:");
+                      if (!name) return;
+                      const contact = prompt("聯絡人:") || "-";
+                      const phone = prompt("電話:") || "-";
+                      const address = prompt("地址:") || "-";
+                      saveCustomerToCloud({
+                        id: `c_${Date.now()}`,
+                        name,
+                        taxId: "-",
+                        contact,
+                        phone,
+                        email: "-",
+                        address,
+                        paymentTerm: "月結30天",
+                        note: ""
+                      });
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 新增客戶
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">公司名稱</th>
+                        <th className="p-4">聯絡人</th>
+                        <th className="p-4">電話</th>
+                        <th className="p-4">地址</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customers.map(c => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-bold text-slate-900">{c.name}</td>
+                          <td className="p-4">{c.contact}</td>
+                          <td className="p-4 font-mono">{c.phone}</td>
+                          <td className="p-4 text-slate-500 text-xs">{c.address}</td>
+                          <td className="p-4 text-center">
+                            <button onClick={() => deleteCustomerFromCloud(c.id)} className="text-rose-500 hover:text-rose-700 p-1">
+                              <IconTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 4. 財務收支 */}
+            {activeTab === "finance" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">工程收支明細</h2>
+                  <button
+                    onClick={() => {
+                      const isIncome = confirm("確定為【收入】點確定，【支出】點取消");
+                      const category = prompt("分類項目 (例: 工程款收入、材料採購):") || "一般支出";
+                      const amount = Number(prompt("金額:")) || 0;
+                      const note = prompt("備註說明:") || "";
+                      saveTransactionToCloud({
+                        id: `t_${Date.now()}`,
+                        date: new Date().toISOString().split("T")[0],
+                        type: isIncome ? "income" : "expense",
+                        category,
+                        amount,
+                        note,
+                        refNo: ""
+                      });
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 手動記帳
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">日期</th>
+                        <th className="p-4">類型</th>
+                        <th className="p-4">分類</th>
+                        <th className="p-4">說明</th>
+                        <th className="p-4 text-right">金額</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {transactions.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50">
+                          <td className="p-4 text-slate-500">{t.date}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.type === 'income' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {t.type === 'income' ? '收入' : '支出'}
+                            </span>
+                          </td>
+                          <td className="p-4 font-medium">{t.category}</td>
+                          <td className="p-4">{t.note}</td>
+                          <td className={`p-4 text-right font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {t.type === 'income' ? '+' : '-'} NT$ {t.amount.toLocaleString()}
+                          </td>
+                          <td className="p-4 text-center">
+                            <button onClick={() => deleteTransactionFromCloud(t.id)} className="text-rose-500 hover:text-rose-700 p-1">
+                              <IconTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 5. Firebase 連線設定 */}
+            {activeTab === "settings" && (
+              <div className="space-y-6 max-w-2xl bg-white p-6 rounded-xl border border-slate-200">
+                <h2 className="text-xl font-bold text-slate-900">Google Firebase 雲端資料庫連線金鑰</h2>
+                <p className="text-xs text-slate-500">
+                  請至 Firebase Console > 專案設定 > 複製 <code className="bg-slate-100 p-1 rounded font-mono">firebaseConfig</code> 物件貼入下方：
+                </p>
+                <div className="space-y-3">
+                  <textarea
+                    rows="8"
+                    placeholder='貼入 Firebase 金鑰 JSON，例如：
+{
+  "apiKey": "AIzaSy...",
+  "authDomain": "changxing-erp.firebaseapp.com",
+  "projectId": "changxing-erp",
+  "storageBucket": "changxing-erp.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'
+                    value={fbConfigStr}
+                    onChange={e => setFbConfigStr(e.target.value)}
+                    className="w-full border rounded p-3 text-xs bg-slate-50 font-mono outline-none focus:ring-2 ring-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      localStorage.setItem("firebase_config", fbConfigStr);
+                      alert("Firebase 設定已儲存，正在重新連線！");
+                      window.location.reload();
+                    }}
+                    className="bg-blue-600 text-white font-bold px-5 py-2.5 rounded-lg text-sm shadow hover:bg-blue-700 transition"
+                  >
+                    儲存金鑰並連接 Firebase
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* 新增報價單彈窗 (含即時「合計」計算欄位) */}
+          {isQuoModalOpen && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 no-print">
+              <div className="bg-white rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold text-slate-900 border-b pb-2">開立工程報價單 (Firebase 雲端同步)</h3>
+                
+                <div className="grid grid-cols-3 gap-3 bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">工程案場名稱 *</label>
+                    <input
+                      type="text"
+                      placeholder="例如: 信義區辦公大樓水電配管工程"
+                      value={quoteForm.projectName}
+                      onChange={e => setQuoteForm({ ...quoteForm, projectName: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">進度狀態</label>
+                    <select
+                      value={quoteForm.projectStatus}
+                      onChange={e => setQuoteForm({ ...quoteForm, projectStatus: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-white font-bold text-blue-700"
+                    >
+                      <option value="施工中">⚡ 施工中</option>
+                      <option value="預計施作">⏳ 預計施作</option>
+                      <option value="已完工">✓ 已完工</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 業主填寫 */}
+                <div className="bg-slate-100 p-3 rounded-xl space-y-2">
+                  <label className="text-xs font-bold text-slate-700">業主資訊</label>
+                  <select
+                    value={quoteForm.customerId}
+                    onChange={e => setQuoteForm({ ...quoteForm, customerId: e.target.value })}
+                    className="w-full border rounded p-2 text-sm bg-white"
+                  >
+                    <option value="">選擇業主...</option>
+                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                {/* 加入工項 */}
+                <div className="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomItem}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-sm font-semibold flex items-center gap-1 shadow-sm"
+                  >
+                    <IconPlus /> 自訂新增空白工項
+                  </button>
+                </div>
+
+                {/* 明細清單 (已包含合計欄位) */}
+                <div className="border rounded p-3 bg-slate-50 space-y-2 max-h-56 overflow-y-auto">
+                  <div className="text-[11px] text-slate-400 font-bold flex px-2 gap-2">
+                    <span className="flex-1">工項名稱 / 規格說明</span>
+                    <span className="w-12 text-center">單位</span>
+                    <span className="w-16 text-right">成本</span>
+                    <span className="w-20 text-right">單價</span>
+                    <span className="w-12 text-center">數量</span>
+                    <span className="w-20 text-right text-slate-700 font-bold">合計 (NT$)</span>
+                    <span className="w-6"></span>
+                  </div>
+                  {quoteForm.items.map((it, idx) => (
+                    <div key={it.id} className="flex items-center gap-2 bg-white p-2 rounded border text-sm">
+                      <input
+                        type="text"
+                        value={it.name}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].name = e.target.value;
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="flex-1 border rounded p-1 text-sm font-bold bg-slate-50"
+                      />
+                      <input
+                        type="text"
+                        value={it.unit || "式"}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].unit = e.target.value;
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-12 border rounded p-1 text-center text-xs"
+                      />
+                      <input
+                        type="number"
+                        value={it.cost || 0}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].cost = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-16 border rounded p-1 text-right text-xs"
+                      />
+                      <input
+                        type="number"
+                        value={it.price}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].price = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-20 border rounded p-1 text-right text-xs font-semibold"
+                      />
+                      <span className="text-xs text-slate-400">×</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={it.quantity}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].quantity = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-12 border rounded p-1 text-center text-xs font-semibold"
+                      />
+                      {/* 👉 合計金額欄位 */}
+                      <span className="w-20 text-right font-bold text-blue-700 text-xs">
+                        NT$ {((Number(it.price) || 0) * (Number(it.quantity) || 0)).toLocaleString()}
+                      </span>
+                      <button onClick={() => setQuoteForm({ ...quoteForm, items: quoteForm.items.filter((_, i) => i !== idx) })} className="text-rose-500 p-1">
+                        <IconTrash />
+                      </button>
+                    </div>
+                  ))}
+                  {quoteForm.items.length === 0 && <div className="text-center text-xs text-slate-400 py-3">請點選上方按鈕新增工項</div>}
+                </div>
+
+                {(() => {
+                  const { total } = calculateQuoteStats(quoteForm.items, quoteForm.discount);
+                  return (
+                    <div className="bg-blue-50 p-3 rounded-lg text-sm flex justify-between items-center font-bold text-blue-900">
+                      <span>工程總計 (含稅): NT$ {total.toLocaleString()}</span>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button onClick={() => setIsQuoModalOpen(false)} className="px-4 py-2 border rounded text-sm">取消</button>
+                  <button onClick={handleSaveQuotation} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm">確認儲存並同步至 Firebase</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 正式 A4 報價單列印預覽 (包含長興工程行專用印章) */}
+          {previewQuo && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-white rounded-xl max-w-3xl w-full p-8 space-y-6 shadow-2xl my-8">
+                <div className="flex justify-between items-center border-b pb-3 no-print">
+                  <span className="font-bold text-slate-700">工程報價單預覽 (A4 格式)</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-1 shadow">
+                      <IconPrinter /> 列印 / 存為 PDF
+                    </button>
+                    <button onClick={() => setPreviewQuo(null)} className="bg-slate-200 text-slate-700 px-4 py-1.5 rounded text-sm font-semibold">
+                      關閉
+                    </button>
+                  </div>
+                </div>
+
+                <div id="printable-area" className="p-8 border border-slate-300 rounded space-y-5 bg-white">
+                  <div className="flex justify-between items-start border-b-2 border-slate-900 pb-3">
+                    <div>
+                      <h1 className="text-3xl font-black tracking-wider text-slate-900">{company.name}</h1>
+                      <div className="text-xs text-slate-500 font-bold tracking-widest mt-0.5">工 程 報 價 單 (QUOTATION)</div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-mono font-bold text-blue-700 text-lg">{previewQuo.no}</div>
+                      <div className="text-slate-500">日期: {previewQuo.date}</div>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-white font-semibold">
+                        <th className="p-2 text-left">工程項目 / 規格說明</th>
+                        <th className="p-2 text-center w-16">單位</th>
+                        <th className="p-2 text-right w-24">單價</th>
+                        <th className="p-2 text-center w-16">數量</th>
+                        <th className="p-2 text-right w-28">小計 (NT$)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y border-b">
+                      {previewQuo.items.map((it, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2 font-medium">{it.name}</td>
+                          <td className="p-2 text-center text-slate-500">{it.unit || "式"}</td>
+                          <td className="p-2 text-right">NT$ {it.price.toLocaleString()}</td>
+                          <td className="p-2 text-center">{it.quantity}</td>
+                          <td className="p-2 text-right font-medium">NT$ {(it.price * it.quantity).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="flex justify-end text-sm">
+                    <div className="font-bold text-base text-slate-900">
+                      總報價金額 (含稅): NT$ {previewQuo.total.toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* 廠商詳細資訊欄與專用印章 */}
+                  <div className="border-2 border-slate-900 mt-4 text-xs">
+                    <div className="grid grid-cols-12 divide-x-2 divide-slate-900 items-stretch">
+                      <div className="col-span-8 divide-y divide-slate-900 flex flex-col justify-between">
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 tracking-widest text-center border-r divide-slate-900">
+                            廠 商 名 稱
+                          </div>
+                          <div className="py-1.5 px-3 font-bold text-slate-900 flex-1">
+                            {company.name}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 text-center border-r divide-slate-900">
+                            負責人、聯絡人
+                          </div>
+                          <div className="py-1.5 px-3 font-semibold text-slate-800 flex-1">
+                            {company.contact}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 tracking-widest text-center border-r divide-slate-900">
+                            電   話
+                          </div>
+                          <div className="py-1.5 px-3 font-mono font-semibold text-slate-800 flex-1">
+                            {company.phone}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 tracking-widest text-center border-r divide-slate-900">
+                            地   址
+                          </div>
+                          <div className="py-1.5 px-3 font-medium text-slate-800 flex-1">
+                            {company.address}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-span-4 p-2 flex flex-col items-center justify-center bg-slate-50/50 min-h-[110px]">
+                        <div className="w-36 h-20 border-2 border-dashed border-blue-600/70 rounded-full flex flex-col items-center justify-center text-blue-700/85 p-1 text-center font-serif shadow-inner bg-white/40">
+                          <div className="text-[11px] font-extrabold tracking-widest">長興工程行</div>
+                          <div className="text-[13px] font-black tracking-wider my-0.5 border-y border-blue-600/50 px-2">估價專用章</div>
+                          <div className="text-[9px] font-mono font-bold leading-none">TEL: {company.phone}</div>
+                          <div className="text-[7.5px] truncate max-w-[130px] mt-0.5">{company.address}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

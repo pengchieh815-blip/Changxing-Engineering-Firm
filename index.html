@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>長興工程行 - 工程管理與報價系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase 9+ SDK (可選連線) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #printable-area, #printable-area * { visibility: visible; }
+      #printable-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    // --- 圖示 SVG ---
+    const IconDashboard = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>;
+    const IconUsers = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>;
+    const IconPackage = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>;
+    const IconFileText = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>;
+    const IconDollarSign = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>;
+    const IconSettings = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>;
+    const IconPlus = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>;
+    const IconTrash = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>;
+    const IconPrinter = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>;
+    const IconLock = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>;
+    const IconMenu = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>;
+    const IconX = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>;
+
+    const defaultCompany = {
+      name: "長興工程行",
+      taxId: "-",
+      contact: "巫長恩",
+      phone: "0926-967-055",
+      email: "changxing.eng@gmail.com",
+      address: "新北市中和區捷運路8-21號12F",
+      bankName: "台灣銀行 (004)",
+      bankAccount: "0123-4567-8901",
+      bankOwner: "長興工程行 巫長恩",
+      logoUrl: "",
+      password: "123" // 預設密碼 123
+    };
+
+    const initialCustomers = [
+      { id: "c1", name: "領航營造股份有限公司", taxId: "54321987", contact: "陳主任", phone: "0912-345-678", email: "chen@lead.com", address: "台北市信義區信義路五段7號", paymentTerm: "月結30天", note: "長期配合建商" },
+      { id: "c2", name: "宏基室內裝修設計", taxId: "98765432", contact: "林設計師", phone: "0988-765-432", email: "lin@interior.com", address: "新北市板橋區文化路二段50號", paymentTerm: "完工驗收付清", note: "一般案場配合" }
+    ];
+
+    const initialProducts = [
+      { id: "p1", code: "ENG-001", name: "室內水電配管與線路工程", unit: "式", cost: 35000, price: 65000, stock: 10, safetyStock: 2 },
+      { id: "p2", code: "ENG-002", name: "全室防水防漏工程施作", unit: "坪", cost: 1200, price: 2800, stock: 50, safetyStock: 10 },
+      { id: "p3", code: "MAT-001", name: "商用高效能抽水加壓馬達", unit: "台", cost: 4500, price: 7800, stock: 1, safetyStock: 3 }
+    ];
+
+    const initialQuotations = [
+      {
+        id: "q1",
+        no: "QUO-2026-001",
+        projectName: "信義區辦公大樓水電配管工程",
+        customerId: "c1",
+        date: "2026-08-15",
+        projectStatus: "施工中",
+        startDate: "2026-08-18",
+        endDate: "2026-09-10",
+        validity: "報價有效期 15 天",
+        delivery: "工程於簽約確認後 14 個工作天內完工",
+        items: [
+          { id: "item1", name: "室內水電配管與線路工程", unit: "式", cost: 35000, price: 65000, quantity: 1 },
+          { id: "item2", name: "全室防水防漏工程施作", unit: "坪", cost: 1200, price: 2800, quantity: 20 }
+        ],
+        subtotal: 121000,
+        totalCost: 59000,
+        discount: 3000,
+        tax: 5900,
+        total: 123900,
+        status: "已成交",
+        syncedToFinance: true
+      }
+    ];
+
+    const initialTransactions = [
+      { id: "t1", date: "2026-08-01", type: "expense", category: "工程五金材料採購", amount: 15000, note: "8月份案場耗材", refNo: "" },
+      { id: "t2", date: "2026-08-16", type: "income", category: "工程款收入", amount: 123900, note: "領航營造 (QUO-2026-001)", refNo: "QUO-2026-001" }
+    ];
+
+    function App() {
+      const [isLoggedIn, setIsLoggedIn] = useState(true); // 預設進入系統，防止被密碼卡住
+      const [inputPassword, setInputPassword] = useState("");
+
+      const [company, setCompany] = useState(() => JSON.parse(localStorage.getItem("erp_company")) || defaultCompany);
+      const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem("erp_customers")) || initialCustomers);
+      const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem("erp_products")) || initialProducts);
+      const [quotations, setQuotations] = useState(() => JSON.parse(localStorage.getItem("erp_quotations")) || initialQuotations);
+      const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem("erp_transactions")) || initialTransactions);
+
+      const [fbConfigStr, setFbConfigStr] = useState(() => localStorage.getItem("firebase_config") || "");
+      const [db, setDb] = useState(null);
+      const [cloudStatus, setCloudStatus] = useState("本機運作模式 (可隨時綁定 Firebase)");
+
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [isQuoModalOpen, setIsQuoModalOpen] = useState(false);
+      const [previewQuo, setPreviewQuo] = useState(null);
+
+      const [mobileNavOpen, setMobileNavOpen] = useState(false);
+      const [customerMode, setCustomerMode] = useState("select");
+      const [customCustomer, setCustomCustomer] = useState({ name: "", taxId: "", contact: "", phone: "", address: "" });
+
+      const [quoteForm, setQuoteForm] = useState({
+        projectName: "",
+        customerId: "",
+        date: new Date().toISOString().split("T")[0],
+        projectStatus: "施工中",
+        startDate: new Date().toISOString().split("T")[0],
+        endDate: "",
+        validity: "報價有效期 15 天",
+        delivery: "簽約確認後 14 個工作日內完工交付",
+        discount: 0,
+        items: []
+      });
+
+      // 本機與雲端同步監聽
+      useEffect(() => {
+        localStorage.setItem("erp_company", JSON.stringify(company));
+        localStorage.setItem("erp_customers", JSON.stringify(customers));
+        localStorage.setItem("erp_products", JSON.stringify(products));
+        localStorage.setItem("erp_quotations", JSON.stringify(quotations));
+        localStorage.setItem("erp_transactions", JSON.stringify(transactions));
+      }, [company, customers, products, quotations, transactions]);
+
+      useEffect(() => {
+        const handleResize = () => {
+          if (window.innerWidth >= 768) setMobileNavOpen(false);
+        };
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+      }, []);
+
+      useEffect(() => {
+        if (!fbConfigStr) return;
+        try {
+          const config = JSON.parse(fbConfigStr);
+          if (!firebase.apps.length) firebase.initializeApp(config);
+          const firestore = firebase.firestore();
+          setDb(firestore);
+          setCloudStatus("🟢 Firebase 雲端已連線");
+
+          firestore.collection("quotations").onSnapshot(snap => {
+            if (!snap.empty) setQuotations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+        } catch (e) {
+          setCloudStatus("🔴 Firebase 連線設定有誤");
+        }
+      }, [fbConfigStr]);
+
+      const calculateQuoteStats = (items, discount) => {
+        const subtotal = items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0);
+        const totalCost = items.reduce((sum, it) => sum + (Number(it.cost) || 0) * (Number(it.quantity) || 0), 0);
+        const disc = Number(discount) || 0;
+        const taxable = Math.max(0, subtotal - disc);
+        const tax = Math.round(taxable * 0.05);
+        const total = taxable + tax;
+        const grossProfit = taxable - totalCost;
+        const grossMargin = taxable > 0 ? ((grossProfit / taxable) * 100).toFixed(1) : 0;
+        return { subtotal, totalCost, tax, total, grossProfit, grossMargin };
+      };
+
+      const handleAddCustomItem = () => {
+        setQuoteForm(prev => ({
+          ...prev,
+          items: [...prev.items, {
+            id: `item_${Date.now()}`,
+            name: "自訂工程項目 / 規格說明",
+            unit: "式",
+            cost: 0,
+            price: 0,
+            quantity: 1
+          }]
+        }));
+      };
+
+      const handleSaveQuotation = async () => {
+        let finalCustomerId = quoteForm.customerId;
+
+        if (customerMode === "custom") {
+          if (!customCustomer.name.trim()) {
+            alert("請填寫業主名稱！");
+            return;
+          }
+          const newCust = {
+            id: `c_${Date.now()}`,
+            name: customCustomer.name.trim(),
+            taxId: customCustomer.taxId.trim() || "-",
+            contact: customCustomer.contact.trim() || "-",
+            phone: customCustomer.phone.trim() || "-",
+            email: "-",
+            address: customCustomer.address.trim() || "-",
+            paymentTerm: "完工付清",
+            note: "開單時自動建立"
+          };
+          setCustomers(prev => [newCust, ...prev]);
+          if (db) await db.collection("customers").doc(newCust.id).set(newCust);
+          finalCustomerId = newCust.id;
+        }
+
+        if (!finalCustomerId) {
+          alert("請選擇業主！");
+          return;
+        }
+
+        if (quoteForm.items.length === 0) {
+          alert("請至少加入一項工項！");
+          return;
+        }
+
+        const { subtotal, totalCost, tax, total } = calculateQuoteStats(quoteForm.items, quoteForm.discount);
+        const newQuo = {
+          id: `q_${Date.now()}`,
+          no: `QUO-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(3, "0")}`,
+          projectName: quoteForm.projectName.trim() || `${customers.find(c => c.id === finalCustomerId)?.name || "案場"}工程`,
+          customerId: finalCustomerId,
+          date: quoteForm.date,
+          projectStatus: quoteForm.projectStatus || "施工中",
+          startDate: quoteForm.startDate || quoteForm.date,
+          endDate: quoteForm.endDate || "",
+          validity: quoteForm.validity,
+          delivery: quoteForm.delivery,
+          items: quoteForm.items,
+          subtotal,
+          totalCost,
+          discount: Number(quoteForm.discount),
+          tax,
+          total,
+          status: "已成交",
+          syncedToFinance: false
+        };
+
+        setQuotations([newQuo, ...quotations]);
+        if (db) await db.collection("quotations").doc(newQuo.id).set(newQuo);
+
+        setIsQuoModalOpen(false);
+        setQuoteForm({ projectName: "", customerId: "", date: new Date().toISOString().split("T")[0], projectStatus: "施工中", startDate: new Date().toISOString().split("T")[0], endDate: "", validity: "報價有效期 15 天", delivery: "簽約確認後 14 個工作日內完工交付", discount: 0, items: [] });
+      };
+
+      const runningProjects = quotations.filter(q => q.projectStatus === "施工中");
+      const upcomingProjects = quotations.filter(q => q.projectStatus === "預計施作" || (q.status === "待回覆" && q.projectStatus !== "已完工"));
+
+      if (!isLoggedIn) {
+        return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                <IconLock />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
+                <p className="text-slate-500 text-sm mt-1">商務管理系統 - 請輸入密碼 (預設: 123)</p>
+              </div>
+              <div className="space-y-4">
+                <input
+                  type="password"
+                  placeholder="輸入訪問密碼"
+                  value={inputPassword}
+                  onChange={e => setInputPassword(e.target.value)}
+                  className="w-full border rounded-xl p-3 text-center text-lg outline-none focus:ring-2 ring-blue-500 bg-slate-50"
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    if (inputPassword === (company.password || "123")) {
+                      setIsLoggedIn(true);
+                    } else {
+                      alert("密碼錯誤，請重新輸入！");
+                    }
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow transition"
+                >
+                  解鎖進入系統
+                </button>
+                <button
+                  onClick={() => setIsLoggedIn(true)}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline block mx-auto"
+                >
+                  [應急通道] 直接進入系統
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex h-screen overflow-hidden relative">
+          {/* 手機版遮罩，點擊可關閉側邊選單 */}
+          {mobileNavOpen && (
+            <div
+              onClick={() => setMobileNavOpen(false)}
+              className="fixed inset-0 bg-black/50 z-30 md:hidden no-print"
+            ></div>
+          )}
+
+          {/* 側邊導航：手機為左側抽屜（可滑出/收合），桌機固定顯示 */}
+          <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-64 bg-slate-900 text-slate-200 flex flex-col p-4 no-print transform transition-transform duration-200 ease-in-out ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+            <div className="flex items-center justify-between gap-3 px-2 py-4 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded bg-blue-600 font-bold flex items-center justify-center text-white text-sm shrink-0">長興</div>
+                <div className="min-w-0">
+                  <div className="font-bold text-base text-white truncate">{company.name}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5 truncate">{cloudStatus}</div>
+                </div>
+              </div>
+              <button onClick={() => setMobileNavOpen(false)} className="md:hidden text-slate-400 hover:text-white p-1 shrink-0">
+                <IconX />
+              </button>
+            </div>
+            <nav className="mt-6 space-y-1 overflow-y-auto flex-1 min-h-0">
+              {[
+                { id: "dashboard", label: "營運與工程儀表板", icon: <IconDashboard /> },
+                { id: "quotations", label: "工程報價單管理", icon: <IconFileText /> },
+                { id: "customers", label: "客戶與業主管理", icon: <IconUsers /> },
+                { id: "products", label: "工項材料與庫存", icon: <IconPackage /> },
+                { id: "finance", label: "財務收支管理", icon: <IconDollarSign /> },
+                { id: "settings", label: "公司設定 / 密碼 / Firebase", icon: <IconSettings /> },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => { setActiveTab(tab.id); setMobileNavOpen(false); }}
+                  className={`relative z-10 w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition select-none ${activeTab === tab.id ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                  </button>
+                ))}
+              </nav>
+            <div className="space-y-2 shrink-0 mt-auto pt-2">
+              <button onClick={() => setIsLoggedIn(false)} className="w-full text-xs text-slate-400 hover:text-rose-400 p-2 text-center border border-slate-800 rounded">
+                🔒 鎖定系統
+              </button>
+            </div>
+          </aside>
+
+          {/* 主要工作區 */}
+          <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 no-print">
+            {/* 手機版頂部列：漢堡選單按鈕 */}
+            <div className="flex items-center gap-3 mb-4 md:hidden">
+              <button onClick={() => setMobileNavOpen(true)} className="p-2 rounded-lg bg-slate-900 text-white shadow shrink-0">
+                <IconMenu />
+              </button>
+              <span className="font-bold text-slate-800 truncate">{company.name}</span>
+            </div>
+            {/* 1. 儀表板 */}
+            {activeTab === "dashboard" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">{company.name} - 營運與工程儀表板</h2>
+                    <p className="text-sm text-slate-500 mt-0.5">即時掌握施工中與預計進場工程案場</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCustomerMode("select");
+                      setIsQuoModalOpen(true);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow"
+                  >
+                    <IconPlus /> 開立工程報價單 / 排程
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-white p-5 rounded-xl border-l-4 border-l-blue-600 border border-slate-200 shadow-sm">
+                    <div className="text-xs font-bold text-blue-600">⚡ 目前正在運行的工程 ({runningProjects.length})</div>
+                    <div className="text-3xl font-black text-slate-900 mt-2">
+                      NT$ {runningProjects.reduce((sum, p) => sum + p.total, 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border-l-4 border-l-amber-500 border border-slate-200 shadow-sm">
+                    <div className="text-xs font-bold text-amber-600">⏳ 預計要做的工程 ({upcomingProjects.length})</div>
+                    <div className="text-3xl font-black text-slate-900 mt-2">
+                      NT$ {upcomingProjects.reduce((sum, p) => sum + p.total, 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                    <h3 className="font-bold text-sm text-blue-900 border-b pb-2">施工中工程清單</h3>
+                    {runningProjects.map(p => (
+                      <div key={p.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-xs">
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">{p.projectName}</div>
+                          <div className="text-slate-500 mt-0.5">工期: {p.startDate} ~ {p.endDate || "完工止"}</div>
+                        </div>
+                        <div className="text-right font-bold text-blue-600">NT$ {p.total.toLocaleString()}</div>
+                      </div>
+                    ))}
+                    {runningProjects.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前無施工中工程</div>}
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                    <h3 className="font-bold text-sm text-amber-900 border-b pb-2">預計施作工程清單</h3>
+                    {upcomingProjects.map(p => (
+                      <div key={p.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-xs">
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">{p.projectName}</div>
+                          <div className="text-slate-500 mt-0.5">預計進場: {p.startDate}</div>
+                        </div>
+                        <div className="text-right font-bold text-amber-600">NT$ {p.total.toLocaleString()}</div>
+                      </div>
+                    ))}
+                    {upcomingProjects.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前無排程中工程</div>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. 報價單管理 */}
+            {activeTab === "quotations" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">工程報價單管理</h2>
+                  <button
+                    onClick={() => {
+                      setCustomerMode("select");
+                      setIsQuoModalOpen(true);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    <IconPlus /> 開立新工程報價單
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[640px] text-left text-xs sm:text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">單號</th>
+                        <th className="p-4">工程名稱</th>
+                        <th className="p-4">進度</th>
+                        <th className="p-4 text-right">總金額 (含稅)</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {quotations.map(q => (
+                        <tr key={q.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-mono font-bold text-blue-600">{q.no}</td>
+                          <td className="p-4 font-bold text-slate-900">{q.projectName}</td>
+                          <td className="p-4 font-semibold text-xs text-blue-700">{q.projectStatus}</td>
+                          <td className="p-4 text-right font-bold">NT$ {q.total.toLocaleString()}</td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <button onClick={() => setPreviewQuo(q)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">
+                                預覽列印
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`確定要刪除報價單「${q.no}」嗎？`)) {
+                                    if (db) await db.collection("quotations").doc(q.id).delete();
+                                    setQuotations(quotations.filter(i => i.id !== q.id));
+                                  }
+                                }}
+                                className="text-rose-500 hover:text-rose-700 p-1"
+                              >
+                                <IconTrash />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 3. 客戶管理 */}
+            {activeTab === "customers" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">客戶與業主名冊</h2>
+                  <button
+                    onClick={() => {
+                      const name = prompt("業主公司名稱:");
+                      if (!name) return;
+                      const contact = prompt("聯絡人:") || "-";
+                      const phone = prompt("電話:") || "-";
+                      const address = prompt("地址:") || "-";
+                      setCustomers([...customers, { id: `c_${Date.now()}`, name, taxId: "-", contact, phone, email: "-", address, paymentTerm: "月結30天", note: "" }]);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    <IconPlus /> 新增客戶
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[640px] text-left text-xs sm:text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">公司名稱</th>
+                        <th className="p-4">聯絡人</th>
+                        <th className="p-4">電話</th>
+                        <th className="p-4">地址</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customers.map(c => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-bold text-slate-900">{c.name}</td>
+                          <td className="p-4">{c.contact}</td>
+                          <td className="p-4 font-mono">{c.phone}</td>
+                          <td className="p-4 text-slate-500 text-xs">{c.address}</td>
+                          <td className="p-4 text-center">
+                            <button onClick={() => setCustomers(customers.filter(i => i.id !== c.id))} className="text-rose-500 hover:text-rose-700 p-1">
+                              <IconTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 3.5 工項材料與庫存 */}
+            {activeTab === "products" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">工項材料與庫存</h2>
+                  <button
+                    onClick={() => {
+                      const name = prompt("工項/材料名稱:");
+                      if (!name) return;
+                      const unit = prompt("單位 (例: 式、坪、台):") || "式";
+                      const cost = Number(prompt("成本單價:")) || 0;
+                      const price = Number(prompt("報價單價:")) || 0;
+                      const stock = Number(prompt("目前庫存量:")) || 0;
+                      setProducts([...products, { id: `p_${Date.now()}`, code: `P-${Date.now().toString().slice(-5)}`, name, unit, cost, price, stock, safetyStock: 0 }]);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    <IconPlus /> 新增工項 / 材料
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[640px] text-left text-xs sm:text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">名稱</th>
+                        <th className="p-4">單位</th>
+                        <th className="p-4 text-right">成本</th>
+                        <th className="p-4 text-right">報價單價</th>
+                        <th className="p-4 text-right">庫存</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {products.map(p => (
+                        <tr key={p.id} className={`hover:bg-slate-50 ${p.stock <= (p.safetyStock || 0) ? 'bg-rose-50/60' : ''}`}>
+                          <td className="p-4 font-bold text-slate-900">{p.name}</td>
+                          <td className="p-4 text-slate-500">{p.unit}</td>
+                          <td className="p-4 text-right">NT$ {Number(p.cost).toLocaleString()}</td>
+                          <td className="p-4 text-right font-semibold">NT$ {Number(p.price).toLocaleString()}</td>
+                          <td className={`p-4 text-right font-bold ${p.stock <= (p.safetyStock || 0) ? 'text-rose-600' : 'text-slate-800'}`}>{p.stock}</td>
+                          <td className="p-4 text-center">
+                            <button onClick={() => setProducts(products.filter(i => i.id !== p.id))} className="text-rose-500 hover:text-rose-700 p-1">
+                              <IconTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {products.length === 0 && (
+                        <tr><td colSpan="6" className="p-6 text-center text-slate-400 text-xs">目前尚無工項或材料資料</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 4. 財務管理 */}
+            {activeTab === "finance" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">工程收支明細</h2>
+                  <button
+                    onClick={() => {
+                      const isIncome = confirm("確定為【收入】點確定，【支出】點取消");
+                      const category = prompt("分類項目 (例: 工程款收入、材料採購):") || "一般支出";
+                      const amount = Number(prompt("金額:")) || 0;
+                      const note = prompt("備註說明:") || "";
+                      setTransactions([
+                        { id: `t_${Date.now()}`, date: new Date().toISOString().split("T")[0], type: isIncome ? "income" : "expense", category, amount, note, refNo: "" },
+                        ...transactions
+                      ]);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    <IconPlus /> 手動記帳
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+                  <table className="w-full min-w-[640px] text-left text-xs sm:text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">日期</th>
+                        <th className="p-4">類型</th>
+                        <th className="p-4">分類</th>
+                        <th className="p-4">說明</th>
+                        <th className="p-4 text-right">金額</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {transactions.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50">
+                          <td className="p-4 text-slate-500">{t.date}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.type === 'income' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {t.type === 'income' ? '收入' : '支出'}
+                            </span>
+                          </td>
+                          <td className="p-4 font-medium">{t.category}</td>
+                          <td className="p-4">{t.note}</td>
+                          <td className={`p-4 text-right font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {t.type === 'income' ? '+' : '-'} NT$ {t.amount.toLocaleString()}
+                          </td>
+                          <td className="p-4 text-center">
+                            <button onClick={() => setTransactions(transactions.filter(i => i.id !== t.id))} className="text-rose-500 hover:text-rose-700 p-1">
+                              <IconTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 5. 公司設定與密碼 */}
+            {activeTab === "settings" && (
+              <div className="space-y-6 max-w-4xl">
+                <h2 className="text-2xl font-bold text-slate-900">公司基本設定與密碼安全</h2>
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 space-y-4 shadow-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">廠商名稱 (抬頭)</label>
+                      <input
+                        type="text"
+                        value={company.name}
+                        onChange={e => setCompany({ ...company, name: e.target.value })}
+                        className="w-full border rounded-lg p-2 text-sm bg-slate-50 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">負責人 / 聯絡人</label>
+                      <input
+                        type="text"
+                        value={company.contact}
+                        onChange={e => setCompany({ ...company, contact: e.target.value })}
+                        className="w-full border rounded-lg p-2 text-sm bg-slate-50 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">聯絡電話</label>
+                      <input
+                        type="text"
+                        value={company.phone}
+                        onChange={e => setCompany({ ...company, phone: e.target.value })}
+                        className="w-full border rounded-lg p-2 text-sm bg-slate-50 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">系統防護密碼 (目前密碼)</label>
+                      <input
+                        type="text"
+                        value={company.password}
+                        onChange={e => setCompany({ ...company, password: e.target.value })}
+                        className="w-full border rounded-lg p-2 text-sm bg-slate-50 font-mono"
+                      />
+                    </div>
+                    <div className="col-span-1 sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">營業地址</label>
+                      <input
+                        type="text"
+                        value={company.address}
+                        onChange={e => setCompany({ ...company, address: e.target.value })}
+                        className="w-full border rounded-lg p-2 text-sm bg-slate-50"
+                      />
+                    </div>
+                  </div>
+
+                  <hr className="my-4" />
+                  <h3 className="font-bold text-slate-800 text-sm">Google Firebase 雲端連線設定 (可選)</h3>
+                  <textarea
+                    rows="4"
+                    placeholder='貼上 Firebase Config JSON 物件 (留空則使用本機模式)'
+                    value={fbConfigStr}
+                    onChange={e => setFbConfigStr(e.target.value)}
+                    className="w-full border rounded p-2.5 text-xs bg-slate-50 font-mono"
+                  />
+
+                  <div className="pt-2">
+                    <button
+                      onClick={() => {
+                        localStorage.setItem("firebase_config", fbConfigStr);
+                        alert("設定與密碼已成功儲存！");
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-bold text-sm shadow"
+                    >
+                      儲存全部設定
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* 新增報價單彈窗 (含即時合計計算) */}
+          {isQuoModalOpen && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 no-print">
+              <div className="bg-white rounded-2xl max-w-3xl w-full p-4 sm:p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold text-slate-900 border-b pb-2">開立工程報價單</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">工程案場名稱 *</label>
+                    <input
+                      type="text"
+                      placeholder="例如: 信義區辦公大樓水電配管工程"
+                      value={quoteForm.projectName}
+                      onChange={e => setQuoteForm({ ...quoteForm, projectName: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-white font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">進度狀態</label>
+                    <select
+                      value={quoteForm.projectStatus}
+                      onChange={e => setQuoteForm({ ...quoteForm, projectStatus: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-white font-bold text-blue-700"
+                    >
+                      <option value="施工中">⚡ 施工中</option>
+                      <option value="預計施作">⏳ 預計施作</option>
+                      <option value="已完工">✓ 已完工</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-slate-100 p-3 rounded-xl space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-700">業主資訊</label>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerMode(customerMode === "select" ? "custom" : "select")}
+                      className="text-xs text-blue-600 font-semibold"
+                    >
+                      {customerMode === "select" ? "+ 手動填寫新業主" : "從既有名冊選擇"}
+                    </button>
+                  </div>
+                  {customerMode === "select" ? (
+                    <select
+                      value={quoteForm.customerId}
+                      onChange={e => setQuoteForm({ ...quoteForm, customerId: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-white"
+                    >
+                      <option value="">選擇業主...</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white p-2 rounded border">
+                      <input
+                        type="text"
+                        placeholder="業主/公司名稱 *"
+                        value={customCustomer.name}
+                        onChange={e => setCustomCustomer({ ...customCustomer, name: e.target.value })}
+                        className="border rounded p-1.5 text-xs"
+                      />
+                      <input
+                        type="text"
+                        placeholder="聯絡電話"
+                        value={customCustomer.phone}
+                        onChange={e => setCustomCustomer({ ...customCustomer, phone: e.target.value })}
+                        className="border rounded p-1.5 text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomItem}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-sm font-semibold flex items-center gap-1 shadow-sm"
+                  >
+                    <IconPlus /> 新增空白工項
+                  </button>
+                </div>
+
+                {/* 明細清單與合計欄位 */}
+                <div className="border rounded p-3 bg-slate-50 space-y-2 max-h-64 overflow-auto">
+                  <div className="min-w-[620px] space-y-2">
+                  <div className="text-[11px] text-slate-400 font-bold flex px-2 gap-2">
+                    <span className="flex-1">工項名稱 / 規格說明</span>
+                    <span className="w-12 text-center">單位</span>
+                    <span className="w-16 text-right">成本</span>
+                    <span className="w-20 text-right">單價</span>
+                    <span className="w-12 text-center">數量</span>
+                    <span className="w-20 text-right text-slate-700 font-bold">合計 (NT$)</span>
+                    <span className="w-6"></span>
+                  </div>
+                  {quoteForm.items.map((it, idx) => (
+                    <div key={it.id} className="flex items-center gap-2 bg-white p-2 rounded border text-sm">
+                      <input
+                        type="text"
+                        value={it.name}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].name = e.target.value;
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="flex-1 border rounded p-1 text-sm font-bold bg-slate-50"
+                      />
+                      <input
+                        type="text"
+                        value={it.unit || "式"}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].unit = e.target.value;
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-12 border rounded p-1 text-center text-xs"
+                      />
+                      <input
+                        type="number"
+                        value={it.cost || 0}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].cost = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-16 border rounded p-1 text-right text-xs"
+                      />
+                      <input
+                        type="number"
+                        value={it.price}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].price = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-20 border rounded p-1 text-right text-xs font-semibold"
+                      />
+                      <span className="text-xs text-slate-400">×</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={it.quantity}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].quantity = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-12 border rounded p-1 text-center text-xs font-semibold"
+                      />
+                      {/* 合計欄位 */}
+                      <span className="w-20 text-right font-bold text-blue-700 text-xs">
+                        NT$ {((Number(it.price) || 0) * (Number(it.quantity) || 0)).toLocaleString()}
+                      </span>
+                      <button onClick={() => setQuoteForm({ ...quoteForm, items: quoteForm.items.filter((_, i) => i !== idx) })} className="text-rose-500 p-1">
+                        <IconTrash />
+                      </button>
+                    </div>
+                  ))}
+                  </div>
+                  {quoteForm.items.length === 0 && <div className="text-center text-xs text-slate-400 py-3">請點選上方按鈕新增工項</div>}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button onClick={() => setIsQuoModalOpen(false)} className="px-4 py-2 border rounded text-sm">取消</button>
+                  <button onClick={handleSaveQuotation} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm">確認開立</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 正式報價單預覽 (包含長興工程行專用印章) */}
+          {previewQuo && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-white rounded-xl max-w-3xl w-full p-4 sm:p-8 space-y-6 shadow-2xl my-8">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 border-b pb-3 no-print">
+                  <span className="font-bold text-slate-700">工程報價單預覽 (A4 格式)</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-1 shadow">
+                      <IconPrinter /> 列印 / 存為 PDF
+                    </button>
+                    <button onClick={() => setPreviewQuo(null)} className="bg-slate-200 text-slate-700 px-4 py-1.5 rounded text-sm font-semibold">
+                      關閉
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                <div id="printable-area" className="p-4 sm:p-8 border border-slate-300 rounded space-y-5 bg-white min-w-[640px]">
+                  <div className="flex justify-between items-start border-b-2 border-slate-900 pb-3">
+                    <div>
+                      <h1 className="text-3xl font-black tracking-wider text-slate-900">{company.name}</h1>
+                      <div className="text-xs text-slate-500 font-bold tracking-widest mt-0.5">工 程 報 價 單 (QUOTATION)</div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-mono font-bold text-blue-700 text-lg">{previewQuo.no}</div>
+                      <div className="text-slate-500">日期: {previewQuo.date}</div>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-white font-semibold">
+                        <th className="p-2 text-left">工程項目 / 規格說明</th>
+                        <th className="p-2 text-center w-16">單位</th>
+                        <th className="p-2 text-right w-24">單價</th>
+                        <th className="p-2 text-center w-16">數量</th>
+                        <th className="p-2 text-right w-28">小計 (NT$)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y border-b">
+                      {previewQuo.items.map((it, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2 font-medium">{it.name}</td>
+                          <td className="p-2 text-center text-slate-500">{it.unit || "式"}</td>
+                          <td className="p-2 text-right">NT$ {it.price.toLocaleString()}</td>
+                          <td className="p-2 text-center">{it.quantity}</td>
+                          <td className="p-2 text-right font-medium">NT$ {(it.price * it.quantity).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="flex justify-end text-sm">
+                    <div className="font-bold text-base text-slate-900">
+                      總報價金額 (含稅): NT$ {previewQuo.total.toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* 廠商名片與估價專用章 */}
+                  <div className="border-2 border-slate-900 mt-4 text-xs">
+                    <div className="grid grid-cols-12 divide-x-2 divide-slate-900 items-stretch">
+                      <div className="col-span-8 divide-y divide-slate-900 flex flex-col justify-between">
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 tracking-widest text-center border-r divide-slate-900">
+                            廠 商 名 稱
+                          </div>
+                          <div className="py-1.5 px-3 font-bold text-slate-900 flex-1">
+                            {company.name}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 text-center border-r divide-slate-900">
+                            負責人、聯絡人
+                          </div>
+                          <div className="py-1.5 px-3 font-semibold text-slate-800 flex-1">
+                            {company.contact}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 tracking-widest text-center border-r divide-slate-900">
+                            電　　　話
+                          </div>
+                          <div className="py-1.5 px-3 font-mono font-semibold text-slate-800 flex-1">
+                            {company.phone}
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-28 py-1.5 px-3 bg-emerald-50/80 font-bold text-slate-800 tracking-widest text-center border-r divide-slate-900">
+                            地　　　址
+                          </div>
+                          <div className="py-1.5 px-3 font-medium text-slate-800 flex-1">
+                            {company.address}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-span-4 p-2 flex flex-col items-center justify-center bg-slate-50/50 min-h-[110px]">
+                        <div className="w-36 h-20 border-2 border-dashed border-blue-600/70 rounded-full flex flex-col items-center justify-center text-blue-700/85 p-1 text-center font-serif shadow-inner bg-white/40">
+                          <div className="text-[11px] font-extrabold tracking-widest">長興工程行</div>
+                          <div className="text-[13px] font-black tracking-wider my-0.5 border-y border-blue-600/50 px-2">估價專用章</div>
+                          <div className="text-[9px] font-mono font-bold leading-none">TEL: {company.phone}</div>
+                          <div className="text-[7.5px] truncate max-w-[130px] mt-0.5">{company.address}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

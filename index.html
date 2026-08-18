@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企業輕量級 ERP & 報價管理系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #printable-area, #printable-area * { visibility: visible; }
+      #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    // --- 圖示 SVG 組件 (免外部載入問題) ---
+    const IconDashboard = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>;
+    const IconUsers = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>;
+    const IconPackage = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>;
+    const IconFileText = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>;
+    const IconDollarSign = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>;
+    const IconPlus = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>;
+    const IconTrash = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>;
+    const IconPrinter = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>;
+    const IconAlert = () => <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>;
+    const IconCheck = () => <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>;
+
+    // --- 預設資料 ---
+    const initialCustomers = [
+      { id: "c1", name: "極致數位科技", contact: "王經理", phone: "0912-345-678", address: "台北市信義區信義路五段7號", note: "月結30天" },
+      { id: "c2", name: "元氣設計工坊", contact: "陳總監", phone: "0988-765-432", address: "台中市西區台灣大道二段100號", note: "長期合作夥伴" },
+      { id: "c3", name: "聯星連鎖餐飲", contact: "李主任", phone: "0922-111-222", address: "高雄市苓雅區三多四路21號", note: "需開立紙本發票" }
+    ];
+
+    const initialProducts = [
+      { id: "p1", code: "SRV-001", name: "客製化網站開發", price: 85000, stock: 10, safetyStock: 2 },
+      { id: "p2", code: "SRV-002", name: "雲端主機年度維護", price: 24000, stock: 15, safetyStock: 5 },
+      { id: "p3", code: "HW-001", name: "高效能商用伺服器", price: 45000, stock: 1, safetyStock: 3 },
+      { id: "p4", code: "HW-002", name: "智慧型收銀POS機", price: 18000, stock: 2, safetyStock: 2 }
+    ];
+
+    const initialQuotations = [
+      {
+        id: "q1",
+        no: "QUO-2026-001",
+        customerId: "c1",
+        date: "2026-08-05",
+        items: [
+          { id: "item1", productId: "p1", name: "客製化網站開發", price: 85000, quantity: 1, amount: 85000 },
+          { id: "item2", productId: "p2", name: "雲端主機年度維護", price: 24000, quantity: 1, amount: 24000 }
+        ],
+        subtotal: 109000,
+        discount: 5000,
+        tax: 5200,
+        total: 109200,
+        status: "已成交",
+        syncedToFinance: true
+      },
+      {
+        id: "q2",
+        no: "QUO-2026-002",
+        customerId: "c2",
+        date: "2026-08-15",
+        items: [
+          { id: "item3", productId: "p3", name: "高效能商用伺服器", price: 45000, quantity: 2, amount: 90000 }
+        ],
+        subtotal: 90000,
+        discount: 0,
+        tax: 4500,
+        total: 94500,
+        status: "待回覆",
+        syncedToFinance: false
+      }
+    ];
+
+    const initialTransactions = [
+      { id: "t1", date: "2026-08-01", type: "expense", category: "辦公室租金", amount: 35000, note: "8月份租金", refNo: "" },
+      { id: "t2", date: "2026-08-06", type: "income", category: "專案收入", amount: 109200, note: "極致數位科技 (QUO-2026-001)", refNo: "QUO-2026-001" },
+      { id: "t3", date: "2026-08-10", type: "expense", category: "軟體服務費", amount: 8200, note: "雲端伺服器與SaaS費用", refNo: "" }
+    ];
+
+    function App() {
+      const [activeTab, setActiveTab] = useState("dashboard");
+      const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem("erp_customers")) || initialCustomers);
+      const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem("erp_products")) || initialProducts);
+      const [quotations, setQuotations] = useState(() => JSON.parse(localStorage.getItem("erp_quotations")) || initialQuotations);
+      const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem("erp_transactions")) || initialTransactions);
+
+      // 自動儲存到 LocalStorage
+      React.useEffect(() => {
+        localStorage.setItem("erp_customers", JSON.stringify(customers));
+        localStorage.setItem("erp_products", JSON.stringify(products));
+        localStorage.setItem("erp_quotations", JSON.stringify(quotations));
+        localStorage.setItem("erp_transactions", JSON.stringify(transactions));
+      }, [customers, products, quotations, transactions]);
+
+      const [previewQuo, setPreviewQuo] = useState(null);
+      const [isQuoModalOpen, setIsQuoModalOpen] = useState(false);
+      const [quoteForm, setQuoteForm] = useState({
+        customerId: "",
+        date: new Date().toISOString().split("T")[0],
+        discount: 0,
+        items: []
+      });
+
+      // 儀表板計算
+      const stats = useMemo(() => {
+        const totalQuoted = quotations.reduce((sum, q) => sum + q.total, 0);
+        const totalWon = quotations.filter(q => q.status === "已成交").reduce((sum, q) => sum + q.total, 0);
+        const totalPending = quotations.filter(q => q.status === "待回覆").reduce((sum, q) => sum + q.total, 0);
+        const totalIncome = transactions.filter(t => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
+        const totalExpense = transactions.filter(t => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+        const lowStockList = products.filter(p => p.stock <= p.safetyStock);
+        return { totalQuoted, totalWon, totalPending, totalIncome, totalExpense, netProfit: totalIncome - totalExpense, lowStockList };
+      }, [quotations, transactions, products]);
+
+      const calculateTotals = (items, discount) => {
+        const subtotal = items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0);
+        const disc = Number(discount) || 0;
+        const taxable = Math.max(0, subtotal - disc);
+        const tax = Math.round(taxable * 0.05);
+        return { subtotal, tax, total: taxable + tax };
+      };
+
+      const handleAddItemToQuote = (productId) => {
+        const p = products.find(i => i.id === productId);
+        if (!p) return;
+        setQuoteForm(prev => ({
+          ...prev,
+          items: [...prev.items, { id: Date.now().toString(), productId: p.id, name: p.name, price: p.price, quantity: 1 }]
+        }));
+      };
+
+      const handleSaveQuotation = () => {
+        if (!quoteForm.customerId || quoteForm.items.length === 0) {
+          alert("請選擇客戶並至少加入一項商品！");
+          return;
+        }
+        const { subtotal, tax, total } = calculateTotals(quoteForm.items, quoteForm.discount);
+        const newQuo = {
+          id: `q${Date.now()}`,
+          no: `QUO-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(3, "0")}`,
+          customerId: quoteForm.customerId,
+          date: quoteForm.date,
+          items: quoteForm.items,
+          subtotal,
+          discount: Number(quoteForm.discount),
+          tax,
+          total,
+          status: "待回覆",
+          syncedToFinance: false
+        };
+        setQuotations([newQuo, ...quotations]);
+        setIsQuoModalOpen(false);
+        setQuoteForm({ customerId: "", date: new Date().toISOString().split("T")[0], discount: 0, items: [] });
+      };
+
+      const handleSyncToFinance = (quo) => {
+        if (quo.syncedToFinance) return;
+        const cust = customers.find(c => c.id === quo.customerId);
+        const newTx = {
+          id: `t${Date.now()}`,
+          date: new Date().toISOString().split("T")[0],
+          type: "income",
+          category: "專案收入",
+          amount: quo.total,
+          note: `${cust?.name || "客戶"} (${quo.no})`,
+          refNo: quo.no
+        };
+        setTransactions([newTx, ...transactions]);
+        setQuotations(quotations.map(q => q.id === quo.id ? { ...q, syncedToFinance: true } : q));
+        alert(`報價單 ${quo.no} 已成功將 NT$ ${quo.total.toLocaleString()} 結算入帳！`);
+      };
+
+      return (
+        <div className="flex h-screen overflow-hidden">
+          {/* 側邊導航 */}
+          <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 no-print">
+            <div>
+              <div className="flex items-center gap-3 px-2 py-4 border-b border-slate-800">
+                <div className="w-8 h-8 rounded bg-blue-600 font-bold flex items-center justify-center text-white">ERP</div>
+                <div className="font-bold text-lg text-white">企業商務系統</div>
+              </div>
+              <nav className="mt-6 space-y-1">
+                {[
+                  { id: "dashboard", label: "營運儀表板", icon: <IconDashboard /> },
+                  { id: "customers", label: "客戶管理", icon: <IconUsers /> },
+                  { id: "products", label: "產品與庫存", icon: <IconPackage /> },
+                  { id: "quotations", label: "報價單管理", icon: <IconFileText /> },
+                  { id: "finance", label: "財務收支管理", icon: <IconDollarSign /> },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            <div className="text-xs text-slate-500 px-2 py-2">資料自動儲存於瀏覽器</div>
+          </aside>
+
+          {/* 主要工作區 */}
+          <main className="flex-1 overflow-y-auto p-8 no-print">
+            {/* 1. 儀表板 */}
+            {activeTab === "dashboard" && (
+              <div className="space-y-6 max-w-6xl">
+                <h2 className="text-2xl font-bold text-slate-900">營運儀表板</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs font-semibold text-slate-500">本月報價總額</div>
+                    <div className="text-2xl font-bold text-slate-900 mt-2">NT$ {stats.totalQuoted.toLocaleString()}</div>
+                    <div className="text-xs text-blue-600 mt-1">共 {quotations.length} 筆單據</div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs font-semibold text-slate-500">已成交金額</div>
+                    <div className="text-2xl font-bold text-emerald-600 mt-2">NT$ {stats.totalWon.toLocaleString()}</div>
+                    <div className="text-xs text-emerald-600 mt-1">確定營收</div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs font-semibold text-slate-500">待回覆金額</div>
+                    <div className="text-2xl font-bold text-amber-500 mt-2">NT$ {stats.totalPending.toLocaleString()}</div>
+                    <div className="text-xs text-amber-600 mt-1">追蹤中</div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs font-semibold text-slate-500">本期收支淨額</div>
+                    <div className={`text-2xl font-bold mt-2 ${stats.netProfit >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                      NT$ {stats.netProfit.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">收入 - 支出</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  {/* 庫存預警 */}
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <IconAlert /> 低庫存預警提醒
+                      </h3>
+                      <span className="text-xs font-bold px-2.5 py-1 bg-rose-100 text-rose-700 rounded-full">
+                        {stats.lowStockList.length} 項警示
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {stats.lowStockList.map(p => (
+                        <div key={p.id} className="py-3 flex justify-between items-center">
+                          <div>
+                            <div className="font-medium text-slate-800">{p.name}</div>
+                            <div className="text-xs text-slate-400">料號: {p.code}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-rose-600">庫存: {p.stock}</div>
+                            <div className="text-xs text-slate-400">安全水位: {p.safetyStock}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {stats.lowStockList.length === 0 && <div className="text-slate-400 text-sm py-4 text-center">所有產品庫存水位充足</div>}
+                    </div>
+                  </div>
+
+                  {/* 收支簡報 */}
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-4">近期收支明細</h3>
+                    <div className="divide-y divide-slate-100">
+                      {transactions.slice(0, 4).map(t => (
+                        <div key={t.id} className="py-3 flex justify-between items-center">
+                          <div>
+                            <div className="font-medium text-slate-800 text-sm">{t.note}</div>
+                            <div className="text-xs text-slate-400">{t.date} · {t.category}</div>
+                          </div>
+                          <div className={`font-bold text-sm ${t.type === 'income' ? 'text-emerald-600' : 'text-slate-800'}`}>
+                            {t.type === 'income' ? '+' : '-'} NT$ {t.amount.toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. 客戶管理 */}
+            {activeTab === "customers" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">客戶名冊管理</h2>
+                  <button
+                    onClick={() => {
+                      const name = prompt("客戶公司名稱:");
+                      if (!name) return;
+                      const contact = prompt("聯絡人:") || "-";
+                      const phone = prompt("電話:") || "-";
+                      const address = prompt("地址:") || "-";
+                      setCustomers([...customers, { id: `c${Date.now()}`, name, contact, phone, address, note: "" }]);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 新增客戶
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">公司名稱</th>
+                        <th className="p-4">聯絡人</th>
+                        <th className="p-4">電話</th>
+                        <th className="p-4">地址</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customers.map(c => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-bold text-slate-900">{c.name}</td>
+                          <td className="p-4">{c.contact}</td>
+                          <td className="p-4">{c.phone}</td>
+                          <td className="p-4 text-slate-500">{c.address}</td>
+                          <td className="p-4 text-center">
+                            <button onClick={() => setCustomers(customers.filter(i => i.id !== c.id))} className="text-rose-500 hover:text-rose-700">
+                              <IconTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 3. 產品與庫存 */}
+            {activeTab === "products" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">產品庫存管理</h2>
+                  <button
+                    onClick={() => {
+                      const name = prompt("產品名稱:");
+                      if (!name) return;
+                      const code = prompt("料號:") || `SKU-${Date.now().toString().slice(-4)}`;
+                      const price = Number(prompt("單價:")) || 0;
+                      const stock = Number(prompt("目前庫存量:")) || 0;
+                      const safetyStock = Number(prompt("安全庫存水位:")) || 5;
+                      setProducts([...products, { id: `p${Date.now()}`, code, name, price, stock, safetyStock }]);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 新增產品
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">品項代碼</th>
+                        <th className="p-4">品名</th>
+                        <th className="p-4 text-right">標準單價</th>
+                        <th className="p-4 text-center">目前庫存</th>
+                        <th className="p-4 text-center">安全水位</th>
+                        <th className="p-4 text-center">庫存狀態</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {products.map(p => {
+                        const isLow = p.stock <= p.safetyStock;
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="p-4 font-mono text-slate-500">{p.code}</td>
+                            <td className="p-4 font-bold text-slate-900">{p.name}</td>
+                            <td className="p-4 text-right font-medium">NT$ {p.price.toLocaleString()}</td>
+                            <td className="p-4 text-center font-bold">{p.stock}</td>
+                            <td className="p-4 text-center text-slate-400">{p.safetyStock}</td>
+                            <td className="p-4 text-center">
+                              {isLow ? (
+                                <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full text-xs font-bold">庫存不足</span>
+                              ) : (
+                                <span className="inline-flex items-center bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full text-xs font-bold">正常</span>
+                              )}
+                            </td>
+                            <td className="p-4 text-center">
+                              <button onClick={() => setProducts(products.filter(i => i.id !== p.id))} className="text-rose-500 hover:text-rose-700">
+                                <IconTrash />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 4. 報價單管理 */}
+            {activeTab === "quotations" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">報價單管理</h2>
+                  <button
+                    onClick={() => setIsQuoModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 開立新報價單
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">報價單號</th>
+                        <th className="p-4">客戶名稱</th>
+                        <th className="p-4">日期</th>
+                        <th className="p-4 text-right">總金額 (含稅)</th>
+                        <th className="p-4 text-center">狀態</th>
+                        <th className="p-4 text-center">財務入帳</th>
+                        <th className="p-4 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {quotations.map(q => {
+                        const cust = customers.find(c => c.id === q.customerId);
+                        return (
+                          <tr key={q.id} className="hover:bg-slate-50">
+                            <td className="p-4 font-mono font-bold text-blue-600">{q.no}</td>
+                            <td className="p-4 font-medium">{cust?.name || "未知客戶"}</td>
+                            <td className="p-4 text-slate-500">{q.date}</td>
+                            <td className="p-4 text-right font-bold text-slate-900">NT$ {q.total.toLocaleString()}</td>
+                            <td className="p-4 text-center">
+                              <select
+                                value={q.status}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setQuotations(quotations.map(item => item.id === q.id ? { ...item, status: val } : item));
+                                }}
+                                className={`text-xs font-bold px-2 py-1 rounded-full border outline-none ${q.status === '已成交' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-amber-50 text-amber-700 border-amber-300'}`}
+                              >
+                                <option value="待回覆">待回覆</option>
+                                <option value="已成交">已成交</option>
+                                <option value="未成交">未成交</option>
+                              </select>
+                            </td>
+                            <td className="p-4 text-center">
+                              {q.status === "已成交" ? (
+                                q.syncedToFinance ? (
+                                  <span className="text-xs text-emerald-600 font-semibold flex items-center justify-center gap-1"><IconCheck /> 已入帳</span>
+                                ) : (
+                                  <button onClick={() => handleSyncToFinance(q)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1 rounded font-semibold">
+                                    一鍵入帳
+                                  </button>
+                                )
+                              ) : <span className="text-xs text-slate-400">-</span>}
+                            </td>
+                            <td className="p-4 text-center">
+                              <button onClick={() => setPreviewQuo(q)} className="text-blue-600 hover:text-blue-800 text-sm font-semibold inline-flex items-center gap-1">
+                                <IconPrinter /> 預覽
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 5. 財務管理 */}
+            {activeTab === "finance" && (
+              <div className="space-y-6 max-w-6xl">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-slate-900">財務收支明細</h2>
+                  <button
+                    onClick={() => {
+                      const isIncome = confirm("確定為【收入】點確定，【支出】點取消");
+                      const category = prompt("分類 (例: 專案收入、水電房租):") || "一般";
+                      const amount = Number(prompt("金額:")) || 0;
+                      const note = prompt("備註說明:") || "";
+                      setTransactions([
+                        {
+                          id: `t${Date.now()}`,
+                          date: new Date().toISOString().split("T")[0],
+                          type: isIncome ? "income" : "expense",
+                          category,
+                          amount,
+                          note,
+                          refNo: ""
+                        },
+                        ...transactions
+                      ]);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2"
+                  >
+                    <IconPlus /> 手動記帳
+                  </button>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                      <tr>
+                        <th className="p-4">日期</th>
+                        <th className="p-4">收支</th>
+                        <th className="p-4">分類</th>
+                        <th className="p-4">關聯單號</th>
+                        <th className="p-4">備註說明</th>
+                        <th className="p-4 text-right">金額</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {transactions.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50">
+                          <td className="p-4 text-slate-500">{t.date}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.type === 'income' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {t.type === 'income' ? '收入' : '支出'}
+                            </span>
+                          </td>
+                          <td className="p-4 font-medium">{t.category}</td>
+                          <td className="p-4 font-mono text-xs text-blue-600">{t.refNo || "-"}</td>
+                          <td className="p-4">{t.note}</td>
+                          <td className={`p-4 text-right font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {t.type === 'income' ? '+' : '-'} NT$ {t.amount.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* 新增報價單彈窗 */}
+          {isQuoModalOpen && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 no-print">
+              <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold text-slate-900 border-b pb-2">開立新報價單</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">客戶</label>
+                    <select
+                      value={quoteForm.customerId}
+                      onChange={e => setQuoteForm({ ...quoteForm, customerId: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-slate-50"
+                    >
+                      <option value="">選擇客戶...</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">日期</label>
+                    <input
+                      type="date"
+                      value={quoteForm.date}
+                      onChange={e => setQuoteForm({ ...quoteForm, date: e.target.value })}
+                      className="w-full border rounded p-2 text-sm bg-slate-50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">加入商品項目</label>
+                  <div className="flex gap-2">
+                    <select id="prodSel" className="flex-1 border rounded p-2 text-sm bg-slate-50">
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name} (NT$ {p.price.toLocaleString()})</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleAddItemToQuote(document.getElementById("prodSel").value)}
+                      className="bg-slate-800 text-white px-4 py-2 rounded text-sm font-semibold"
+                    >
+                      加入明細
+                    </button>
+                  </div>
+                </div>
+
+                {/* 明細清單 */}
+                <div className="border rounded p-3 bg-slate-50 space-y-2 max-h-48 overflow-y-auto">
+                  {quoteForm.items.map((it, idx) => (
+                    <div key={it.id} className="flex items-center gap-2 bg-white p-2 rounded border text-sm">
+                      <span className="flex-1 font-bold">{it.name}</span>
+                      <input
+                        type="number"
+                        value={it.price}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].price = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-24 border rounded p-1 text-right text-xs"
+                      />
+                      <span className="text-xs">×</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={it.quantity}
+                        onChange={e => {
+                          const items = [...quoteForm.items];
+                          items[idx].quantity = Number(e.target.value);
+                          setQuoteForm({ ...quoteForm, items });
+                        }}
+                        className="w-16 border rounded p-1 text-center text-xs"
+                      />
+                      <button onClick={() => setQuoteForm({ ...quoteForm, items: quoteForm.items.filter((_, i) => i !== idx) })} className="text-rose-500 p-1">
+                        <IconTrash />
+                      </button>
+                    </div>
+                  ))}
+                  {quoteForm.items.length === 0 && <div className="text-center text-xs text-slate-400 py-3">請選擇上方商品加入</div>}
+                </div>
+
+                {/* 金額統計 */}
+                {(() => {
+                  const { subtotal, tax, total } = calculateTotals(quoteForm.items, quoteForm.discount);
+                  return (
+                    <div className="bg-blue-50 p-3 rounded-lg text-sm space-y-1">
+                      <div className="flex justify-between"><span>小計:</span><span>NT$ {subtotal.toLocaleString()}</span></div>
+                      <div className="flex justify-between items-center">
+                        <span>折扣減免:</span>
+                        <input
+                          type="number"
+                          value={quoteForm.discount}
+                          onChange={e => setQuoteForm({ ...quoteForm, discount: e.target.value })}
+                          className="w-24 border rounded p-1 text-right text-xs bg-white"
+                        />
+                      </div>
+                      <div className="flex justify-between"><span>營業稅 (5%):</span><span>NT$ {tax.toLocaleString()}</span></div>
+                      <div className="flex justify-between font-bold text-blue-900 border-t pt-1">
+                        <span>總計金額:</span><span>NT$ {total.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button onClick={() => setIsQuoModalOpen(false)} className="px-4 py-2 border rounded text-sm">取消</button>
+                  <button onClick={handleSaveQuotation} className="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm">確定開立</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 報價單列印預覽 (支援 A4 列印 / 匯出 PDF) */}
+          {previewQuo && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-white rounded-xl max-w-3xl w-full p-8 space-y-6 shadow-2xl my-8">
+                <div className="flex justify-between items-center border-b pb-3 no-print">
+                  <span className="font-bold text-slate-700">正式報價單預覽</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-1">
+                      <IconPrinter /> 列印 / 存為 PDF
+                    </button>
+                    <button onClick={() => setPreviewQuo(null)} className="bg-slate-200 text-slate-700 px-4 py-1.5 rounded text-sm font-semibold">
+                      關閉
+                    </button>
+                  </div>
+                </div>
+
+                {/* A4 格式區塊 */}
+                <div id="printable-area" className="p-6 border border-slate-300 rounded space-y-6 bg-white">
+                  <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
+                    <div>
+                      <h1 className="text-3xl font-extrabold tracking-wider">公 司 報 價 單</h1>
+                      <div className="text-xs text-slate-500 mt-1">QUOTATION</div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-mono font-bold text-blue-700 text-lg">{previewQuo.no}</div>
+                      <div className="text-slate-500">日期: {previewQuo.date}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-xs font-bold text-slate-400 mb-1">客戶資訊 (TO)</div>
+                      {(() => {
+                        const cust = customers.find(c => c.id === previewQuo.customerId);
+                        return (
+                          <div>
+                            <div className="font-bold text-slate-900 text-base">{cust?.name}</div>
+                            <div className="text-slate-600">聯絡人: {cust?.contact}</div>
+                            <div className="text-slate-600">電話: {cust?.phone}</div>
+                            <div className="text-slate-600">地址: {cust?.address}</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-slate-400 mb-1">發報單位 (FROM)</div>
+                      <div className="font-bold text-slate-900 text-base">數位商務管理顧問有限公司</div>
+                      <div className="text-slate-600">統一編號: 88888888</div>
+                      <div className="text-slate-600">電話: (02) 2345-6789</div>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-white">
+                        <th className="p-2 text-left">#</th>
+                        <th className="p-2 text-left">品名 / 服務項目</th>
+                        <th className="p-2 text-right">單價</th>
+                        <th className="p-2 text-center">數量</th>
+                        <th className="p-2 text-right">小計</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y border-b">
+                      {previewQuo.items.map((it, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2 text-slate-400">{idx + 1}</td>
+                          <td className="p-2 font-medium">{it.name}</td>
+                          <td className="p-2 text-right">NT$ {it.price.toLocaleString()}</td>
+                          <td className="p-2 text-center">{it.quantity}</td>
+                          <td className="p-2 text-right font-medium">NT$ {(it.price * it.quantity).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="flex justify-end text-sm">
+                    <div className="w-60 space-y-1">
+                      <div className="flex justify-between text-slate-600"><span>小計:</span><span>NT$ {previewQuo.subtotal.toLocaleString()}</span></div>
+                      {previewQuo.discount > 0 && <div className="flex justify-between text-rose-600"><span>折扣:</span><span>- NT$ {previewQuo.discount.toLocaleString()}</span></div>}
+                      <div className="flex justify-between text-slate-600"><span>營業稅 (5%):</span><span>NT$ {previewQuo.tax.toLocaleString()}</span></div>
+                      <div className="flex justify-between font-bold text-base border-t-2 border-slate-900 pt-1">
+                        <span>總計金額:</span><span>NT$ {previewQuo.total.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-8 pt-8 text-sm">
+                    <div className="border-t border-slate-400 pt-2 text-center text-slate-500">客戶確認簽章 (含公司大小章)</div>
+                    <div className="border-t border-slate-400 pt-2 text-center text-slate-500">業務主管核准簽章</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

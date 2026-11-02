@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>長興工程行 - ERP 工程管理系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase 9+ SDK (雲端同步，可選) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    @page { size: A4; margin: 12mm; }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-area, #printable-area * { visibility: visible; }
+      #printable-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none !important; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef, useContext, createContext } = React;
+
+    /* ===================== 圖示 ===================== */
+    const ICONS = {
+      dashboard: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
+      users: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
+      package: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+      file: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+      dollar: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+      settings: [
+        "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+        "M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+      ],
+      plus: "M12 4v16m8-8H4",
+      trash: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
+      printer: "M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z",
+      lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+      menu: "M4 6h16M4 12h16M4 18h16",
+      x: "M6 18L18 6M6 6l12 12",
+      pencil: "M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z",
+      clock: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+      cart: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
+      building: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+      cash: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
+      calculator: "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z",
+      user: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+      chart: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+      download: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
+      upload: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12",
+      check: "M5 13l4 4L19 7"
+    };
+
+    function Icon({ name, className = "w-5 h-5" }) {
+      const d = ICONS[name];
+      const ds = Array.isArray(d) ? d : [d];
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {ds.map((p, i) => <path key={i} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={p}></path>)}
+        </svg>
+      );
+    }
+
+    /* ===================== 共用工具 ===================== */
+    const uid = (p = "id") => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const pad = n => String(n).padStart(2, "0");
+    const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+    const num = n => (Number(n) || 0);
+    const money = n => "NT$ " + Math.round(num(n)).toLocaleString();
+    const sum = (arr, f) => arr.reduce((s, x) => s + num(f(x)), 0);
+    const clean = o => JSON.parse(JSON.stringify(o));
+    const monthOf = d => (d || "").slice(0, 7);
+    const loadLS = (k, fb) => {
+      try { const v = JSON.parse(localStorage.getItem(k)); return v === null || v === undefined ? fb : v; }
+      catch (e) { return fb; }
+    };
+    const lastMonths = n => Array.from({ length: n }, (_, i) => {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (n - 1 - i));
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+    });
+    const nextNo = (prefix, list) => {
+      const y = new Date().getFullYear();
+      const re = new RegExp(`^${prefix}-${y}-(\\d+)$`);
+      const max = list.reduce((m, x) => { const mt = re.exec(x.no || ""); return mt ? Math.max(m, Number(mt[1])) : m; }, 0);
+      return `${prefix}-${y}-${String(max + 1).padStart(3, "0")}`;
+    };
+
+    // 金額轉中文大寫
+    const cnUpper = (amount) => {
+      const n0 = Math.round(num(amount));
+      if (n0 === 0) return "零元整";
+      const d = ["零", "壹", "貳", "參", "肆", "伍", "陸", "柒", "捌", "玖"];
+      const u = ["", "拾", "佰", "仟"];
+      const big = ["", "萬", "億", "兆"];
+      const seg4 = (s) => {
+        let r = "", z = false;
+        for (let i = 3; i >= 0; i--) {
+          const v = Math.floor(s / Math.pow(10, i)) % 10;
+          if (v === 0) { if (r) z = true; }
+          else { if (z) { r += "零"; z = false; } r += d[v] + u[i]; }
+        }
+        return r;
+      };
+      const segs = []; let n = n0;
+      while (n > 0) { segs.push(n % 10000); n = Math.floor(n / 10000); }
+      let out = "", needZero = false;
+      for (let gi = segs.length - 1; gi >= 0; gi--) {
+        const seg = segs[gi];
+        if (seg === 0) { needZero = out !== ""; continue; }
+        if (out !== "" && (needZero || seg < 1000)) out += "零";
+        out += seg4(seg) + big[gi];
+        needZero = false;
+      }
+      return out + "元整";
+    };
+
+    // 報價單計算（營業稅 5%）
+    const calcQuote = (items, discount) => {
+      const subtotal = sum(items, it => num(it.price) * num(it.quantity));
+      const totalCost = sum(items, it => num(it.cost) * num(it.quantity));
+      const disc = Math.min(num(discount), subtotal);
+      const taxable = subtotal - disc;
+      const tax = Math.round(taxable * 0.05);
+      return {
+        subtotal, totalCost, discount: disc, taxable, tax, total: taxable + tax,
+        grossProfit: taxable - totalCost,
+        margin: taxable > 0 ? Math.round((taxable - totalCost) / taxable * 1000) / 10 : 0
+      };
+    };
+    const calcPurchase = (items, withTax) => {
+      const subtotal = sum(items, it => num(it.cost) * num(it.quantity));
+      const tax = withTax ? Math.round(subtotal * 0.05) : 0;
+      return { subtotal, tax, total: subtotal + tax };
+    };
+
+    // 薪資：換算成時薪（日薪 ÷ 8，月薪 ÷ 30 ÷ 8）
+    const hourlyOf = emp => {
+      const r = num(emp.rate);
+      return emp.payType === "時薪" ? r : emp.payType === "月薪" ? r / 240 : r / 8;
+    };
+    const productType = p => p.type || (String(p.code || "").toUpperCase().startsWith("MAT") ? "材料" : "工項");
+
+    // 收款：新資料用 receipts 陣列；舊資料沿用財務收支中同單號的收入
+    const receiptsOf = (q, txs) => Array.isArray(q.receipts)
+      ? q.receipts
+      : txs.filter(t => t.type === "income" && t.refNo && t.refNo === q.no)
+          .map(t => ({ id: t.id, date: t.date, amount: t.amount, note: t.note || "", txId: t.id }));
+    const paymentsOf = p => Array.isArray(p.payments) ? p.payments : [];
+
+    const balanceStatus = (total, paid, due) => {
+      const balance = num(total) - num(paid);
+      if (balance <= 0) return { label: "已結清", cls: "bg-emerald-100 text-emerald-800", balance: 0, overdue: false };
+      const overdue = !!due && due < today();
+      if (overdue) return { label: "逾期未結", cls: "bg-rose-100 text-rose-800", balance, overdue };
+      if (num(paid) > 0) return { label: "部分結清", cls: "bg-amber-100 text-amber-800", balance, overdue };
+      return { label: "未結清", cls: "bg-slate-100 text-slate-700", balance, overdue };
+    };
+
+    // 專案成本統計
+    const projectStats = (q, D) => {
+      const revenue = num(q.subtotal) - num(q.discount);
+      const purchases = D.purchases.filter(p => p.projectId === q.id);
+      const material = sum(purchases, p => p.subtotal);
+      const sheets = D.timesheets.filter(t => t.projectId === q.id);
+      const labor = sum(sheets, t => t.cost);
+      const otherTx = D.transactions.filter(t => t.type === "expense" && t.projectId === q.id && !t.purchaseId && t.kind !== "payroll");
+      const other = sum(otherTx, t => t.amount);
+      const actual = material + labor + other;
+      const profit = revenue - actual;
+      const received = sum(receiptsOf(q, D.transactions), r => r.amount);
+      return {
+        revenue, est: num(q.totalCost), material, labor, other, actual, profit,
+        margin: revenue > 0 ? profit / revenue * 100 : 0,
+        received, purchases, sheets, otherTx
+      };
+    };
+
+    // 應收 / 應付 彙整列
+    const arRows = D => D.quotations.filter(q => q.status === "已成交").map(q => ({
+      id: q.id, no: q.no, title: q.projectName,
+      party: (D.customers.find(c => c.id === q.customerId) || {}).name || "-",
+      total: num(q.total), paid: sum(receiptsOf(q, D.transactions), r => r.amount), due: q.dueDate || ""
+    }));
+    const apRows = D => D.purchases.map(p => ({
+      id: p.id, no: p.no,
+      title: (D.quotations.find(q => q.id === p.projectId) || {}).projectName || "（未歸屬工程）",
+      party: (D.suppliers.find(s => s.id === p.supplierId) || {}).name || "-",
+      total: num(p.total), paid: sum(paymentsOf(p), x => x.amount), due: p.dueDate || ""
+    }));
+
+    /* ===================== 預設資料 ===================== */
+    const defaultCompany = {
+      name: "長興工程行",
+      taxId: "-",
+      contact: "巫長恩",
+      phone: "0926-967-055",
+      email: "changxing.eng@gmail.com",
+      address: "新北市中和區捷運路8-21號12F",
+      bankName: "台灣銀行 (004)",
+      bankAccount: "0123-4567-8901",
+      bankOwner: "長興工程行 巫長恩",
+      logoUrl: "",
+      password: "123"
+    };
+
+    const initialCustomers = [
+      { id: "c1", name: "領航營造股份有限公司", taxId: "54321987", contact: "陳主任", phone: "0912-345-678", email: "chen@lead.com", address: "台北市信義區信義路五段7號", paymentTerm: "月結30天", note: "長期配合建商" },
+      { id: "c2", name: "宏基室內裝修設計", taxId: "98765432", contact: "林設計師", phone: "0988-765-432", email: "lin@interior.com", address: "新北市板橋區文化路二段50號", paymentTerm: "完工驗收付清", note: "一般案場配合" }
+    ];
+
+    const initialProducts = [
+      { id: "p1", code: "ENG-001", type: "工項", name: "室內水電配管與線路工程", unit: "式", cost: 35000, price: 65000, stock: 10, safetyStock: 2 },
+      { id: "p2", code: "ENG-002", type: "工項", name: "全室防水防漏工程施作", unit: "坪", cost: 1200, price: 2800, stock: 50, safetyStock: 10 },
+      { id: "p3", code: "MAT-001", type: "材料", name: "商用高效能抽水加壓馬達", unit: "台", cost: 4500, price: 7800, stock: 1, safetyStock: 3 }
+    ];
+
+    const initialQuotations = [
+      {
+        id: "q1", no: "QUO-2026-001", projectName: "信義區辦公大樓水電配管工程", customerId: "c1",
+        date: "2026-08-15", projectStatus: "施工中", startDate: "2026-08-18", endDate: "2026-09-10",
+        validity: "報價有效期 15 天", delivery: "工程於簽約確認後 14 個工作天內完工",
+        items: [
+          { id: "item1", name: "室內水電配管與線路工程", unit: "式", cost: 35000, price: 65000, quantity: 1 },
+          { id: "item2", name: "全室防水防漏工程施作", unit: "坪", cost: 1200, price: 2800, quantity: 20 }
+        ],
+        subtotal: 121000, totalCost: 59000, discount: 3000, tax: 5900, total: 123900,
+        status: "已成交", syncedToFinance: true
+      }
+    ];
+
+    const initialTransactions = [
+      { id: "t1", date: "2026-08-01", type: "expense", category: "工程五金材料採購", amount: 15000, note: "8月份案場耗材", refNo: "" },
+      { id: "t2", date: "2026-08-16", type: "income", category: "工程款收入", amount: 123900, note: "領航營造 (QUO-2026-001)", refNo: "QUO-2026-001" }
+    ];
+
+    const NAV = [
+      { group: "業務", items: [
+        { id: "dashboard", label: "營運儀表板", icon: "dashboard" },
+        { id: "quotations", label: "工程報價單", icon: "file" },
+        { id: "projects", label: "工程專案成本", icon: "chart" },
+        { id: "customers", label: "客戶與業主", icon: "users" }
+      ] },
+      { group: "採購與庫存", items: [
+        { id: "suppliers", label: "供應商", icon: "building" },
+        { id: "purchases", label: "採購單", icon: "cart" },
+        { id: "products", label: "工項材料與庫存", icon: "package" }
+      ] },
+      { group: "帳務", items: [
+        { id: "receivables", label: "應收帳款", icon: "cash" },
+        { id: "payables", label: "應付帳款", icon: "calculator" },
+        { id: "finance", label: "財務收支", icon: "dollar" }
+      ] },
+      { group: "人事", items: [
+        { id: "employees", label: "員工名冊", icon: "user" },
+        { id: "timesheets", label: "工時與薪資", icon: "clock" }
+      ] },
+      { group: "系統", items: [
+        { id: "settings", label: "公司設定 / 雲端同步", icon: "settings" }
+      ] }
+    ];
+    const NAV_FLAT = NAV.flatMap(g => g.items);
+
+    /* ===================== Firebase 設定解析 ===================== */
+    function parseFirebaseConfig(str) {
+      let s = String(str || "").trim();
+      const a = s.indexOf("{"), b = s.lastIndexOf("}");
+      if (a < 0 || b < a) throw new Error("找不到 { } 設定內容");
+      s = s.slice(a, b + 1);
+      try { return JSON.parse(s); } catch (e) { /* 試著修正 JS 物件寫法 */ }
+      const fixed = s
+        .replace(/([{,]\s*)([A-Za-z_]\w*)\s*:/g, '$1"$2":')
+        .replace(/'/g, '"')
+        .replace(/,\s*}/g, "}");
+      return JSON.parse(fixed);
+    }
+
+    /* ===================== 資料同步 Hook（本機 + Firebase） ===================== */
+    const cloudError = err => window.dispatchEvent(new CustomEvent("cloud-error", { detail: (err && err.code) || "unknown" }));
+
+    function useCloudList(name, initial, db) {
+      const key = "erp_" + name;
+      const [list, setList] = useState(() => loadLS(key, initial));
+      const listRef = useRef(list);
+      listRef.current = list;
+      const seeded = useRef(false);
+
+      useEffect(() => { try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { /* ignore */ } }, [list]);
+
+      useEffect(() => {
+        if (!db) return;
+        seeded.current = false;
+        const col = db.collection(name);
+        const unsub = col.onSnapshot(snap => {
+          if (snap.empty && !seeded.current && listRef.current.length > 0) {
+            // 雲端是空的：把本機資料上傳
+            const batch = db.batch();
+            listRef.current.forEach((it, i) => batch.set(col.doc(it.id), clean({ ...it, createdAt: it.createdAt || (Date.now() - i) })));
+            batch.commit().catch(cloudError);
+          } else {
+            setList(snap.docs.map(d => d.data()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+          }
+          seeded.current = true;
+        }, cloudError);
+        return unsub;
+      }, [db]);
+
+      const api = {
+        add: item => {
+          const it = { createdAt: Date.now(), ...item };
+          setList(p => [it, ...p]);
+          if (db) db.collection(name).doc(it.id).set(clean(it)).catch(cloudError);
+          return it;
+        },
+        update: (id, patch) => {
+          setList(p => p.map(x => x.id === id ? { ...x, ...patch } : x));
+          if (db) db.collection(name).doc(id).set(clean(patch), { merge: true }).catch(cloudError);
+        },
+        remove: id => {
+          setList(p => p.filter(x => x.id !== id));
+          if (db) db.collection(name).doc(id).delete().catch(cloudError);
+        },
+        replaceAll: async items => {
+          const next = items.map((it, i) => ({ ...it, id: it.id || uid("i"), createdAt: it.createdAt || (Date.now() - i) }));
+          const old = listRef.current;
+          setList(next);
+          if (db) {
+            const col = db.collection(name);
+            const ops = [
+              ...old.filter(o => !next.some(n => n.id === o.id)).map(o => ({ del: o.id })),
+              ...next.map(n => ({ set: n }))
+            ];
+            for (let i = 0; i < ops.length; i += 400) {
+              const b = db.batch();
+              ops.slice(i, i + 400).forEach(op => op.del ? b.delete(col.doc(op.del)) : b.set(col.doc(op.set.id), clean(op.set)));
+              await b.commit().catch(cloudError);
+            }
+          }
+        }
+      };
+      return [list, api];
+    }
+
+    function useCloudDoc(name, initial, db) {
+      const key = "erp_" + name;
+      const [val, setVal] = useState(() => ({ ...initial, ...(loadLS(key, {}) || {}) }));
+      const ref = useRef(val);
+      ref.current = val;
+      useEffect(() => { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* ignore */ } }, [val]);
+      useEffect(() => {
+        if (!db) return;
+        const docRef = db.collection("settings").doc(name);
+        const unsub = docRef.onSnapshot(snap => {
+          if (snap.exists) setVal({ ...initial, ...snap.data() });
+          else docRef.set(clean(ref.current)).catch(cloudError);
+        }, cloudError);
+        return unsub;
+      }, [db]);
+      const save = next => {
+        setVal(next);
+        if (db) db.collection("settings").doc(name).set(clean(next)).catch(cloudError);
+      };
+      return [val, save];
+    }
+
+    const DataCtx = createContext(null);
+    const useData = () => useContext(DataCtx);
+
+    /* ===================== 共用 UI 元件 ===================== */
+    const inputCls = "w-full border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+    const btnPrimary = "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm inline-flex items-center justify-center gap-2 shadow-sm";
+    const btnGhost = "px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 inline-flex items-center justify-center gap-2";
+
+    class ErrorBoundary extends React.Component {
+      constructor(p) { super(p); this.state = { err: null }; }
+      static getDerivedStateFromError(err) { return { err }; }
+      render() {
+        if (this.state.err) {
+          return (
+            <div className="p-6 max-w-xl mx-auto mt-10 bg-white rounded-xl border border-rose-200 space-y-3">
+              <div className="font-bold text-rose-600">系統發生錯誤</div>
+              <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto whitespace-pre-wrap">{String((this.state.err && this.state.err.stack) || this.state.err)}</pre>
+              <button className={btnPrimary} onClick={() => location.reload()}>重新整理</button>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    const Field = ({ label, required, hint, className = "", children }) => (
+      <label className={`block ${className}`}>
+        <span className="block text-xs font-bold text-slate-600 mb-1">{label}{required && <span className="text-rose-500"> *</span>}</span>
+        {children}
+        {hint && <span className="block text-[11px] text-slate-400 mt-1">{hint}</span>}
+      </label>
+    );
+
+    function NumInput({ value, onChange, className = inputCls, ...p }) {
+      return (
+        <input
+          type="number" inputMode="decimal" className={className}
+          value={value === undefined || value === null ? "" : value}
+          onFocus={e => e.target.select()}
+          onChange={e => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+          {...p}
+        />
+      );
+    }
+
+    function Modal({ title, onClose, children, footer, size = "max-w-2xl" }) {
+      return (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 no-print">
+          <div className={`bg-white w-full ${size} rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col`}>
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b shrink-0">
+              <h3 className="font-bold text-slate-900">{title}</h3>
+              <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700"><Icon name="x" /></button>
+            </div>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">{children}</div>
+            {footer && <div className="px-4 sm:px-6 py-3 border-t flex justify-end gap-2 shrink-0 bg-slate-50 rounded-b-2xl">{footer}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    const PageHeader = ({ title, subtitle, children }) => (
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+        </div>
+        <div className="flex flex-wrap gap-2">{children}</div>
+      </div>
+    );
+
+    const Badge = ({ cls = "bg-slate-100 text-slate-700", children }) => (
+      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${cls}`}>{children}</span>
+    );
+
+    const ActBtn = ({ tone = "blue", children, ...p }) => {
+      const t = {
+        blue: "text-blue-700 bg-blue-50 hover:bg-blue-100",
+        rose: "text-rose-700 bg-rose-50 hover:bg-rose-100",
+        slate: "text-slate-700 bg-slate-100 hover:bg-slate-200",
+        emerald: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
+        amber: "text-amber-700 bg-amber-50 hover:bg-amber-100"
+      }[tone];
+      return <button type="button" className={`text-xs font-semibold px-2.5 py-1.5 rounded-md whitespace-nowrap ${t}`} {...p}>{children}</button>;
+    };
+
+    const Stat = ({ label, value, sub, tone = "blue", onClick }) => {
+      const t = {
+        blue: "border-l-blue-600 text-blue-600",
+        amber: "border-l-amber-500 text-amber-600",
+        emerald: "border-l-emerald-500 text-emerald-600",
+        rose: "border-l-rose-500 text-rose-600",
+        slate: "border-l-slate-400 text-slate-500"
+      }[tone];
+      return (
+        <div onClick={onClick} className={`bg-white p-4 rounded-xl border border-slate-200 border-l-4 shadow-sm ${t.split(" ")[0]} ${onClick ? "cursor-pointer hover:shadow" : ""}`}>
+          <div className={`text-xs font-bold ${t.split(" ")[1]}`}>{label}</div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1 break-words">{value}</div>
+          {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+        </div>
+      );
+    };
+
+    const Seg = ({ value, onChange, options }) => (
+      <div className="inline-flex bg-slate-200/70 rounded-lg p-1 text-sm">
+        {options.map(o => (
+          <button key={o.value} type="button" onClick={() => onChange(o.value)}
+            className={`px-3 py-1.5 rounded-md font-semibold ${value === o.value ? "bg-white shadow text-blue-700" : "text-slate-600"}`}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    );
+
+    // 電腦版顯示表格，手機版自動變成卡片
+    function DataList({ columns, rows, empty = "目前沒有資料" }) {
+      if (!rows.length) {
+        return <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">{empty}</div>;
+      }
+      const cell = (c, r) => c.render ? c.render(r) : r[c.key];
+      const al = a => a === "right" ? "text-right" : a === "center" ? "text-center" : "";
+      const dataCols = columns.filter(c => !c.actions);
+      const actionCol = columns.find(c => c.actions);
+      return (
+        <>
+          <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 border-b text-slate-600 font-semibold">
+                <tr>{columns.map((c, i) => <th key={i} className={`px-4 py-3 whitespace-nowrap ${al(c.align)}`}>{c.label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map(r => (
+                  <tr key={r.id} className="hover:bg-slate-50 align-top">
+                    {columns.map((c, i) => <td key={i} className={`px-4 py-3 ${al(c.align)}`}>{cell(c, r)}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="md:hidden space-y-3">
+            {rows.map(r => (
+              <div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-2">
+                {dataCols.map((c, i) => i === 0 ? (
+                  <div key={i} className="font-bold text-slate-900 break-words">{cell(c, r)}</div>
+                ) : (
+                  <div key={i} className="flex justify-between gap-3 text-sm">
+                    <span className="text-slate-400 text-xs shrink-0 pt-0.5">{c.label}</span>
+                    <span className="text-right min-w-0 break-words">{cell(c, r)}</span>
+                  </div>
+                ))}
+                {actionCol && <div className="pt-2 border-t flex flex-wrap gap-2 justify-end">{actionCol.render(r)}</div>}
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    const SearchBox = ({ value, onChange, placeholder = "搜尋…" }) => (
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={inputCls + " sm:w-64"} />
+    );
+
+    /* ===================== 表單彈窗 ===================== */
+    const FormFooter = ({ onClose, onSave, saveLabel = "儲存" }) => (
+      <>
+        <button type="button" className={btnGhost} onClick={onClose}>取消</button>
+        <button type="button" className={btnPrimary} onClick={onSave}>{saveLabel}</button>
+      </>
+    );
+
+    // 客戶 / 供應商共用
+    function PartyForm({ title, initial, onSave, onClose }) {
+      const [f, setF] = useState({ name: "", taxId: "", contact: "", phone: "", email: "", address: "", paymentTerm: "", note: "", ...initial });
+      const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+      const submit = () => {
+        if (!f.name.trim()) return alert("請填寫名稱");
+        onSave({ ...f, name: f.name.trim() });
+      };
+      return (
+        <Modal title={title} onClose={onClose} footer={<FormFooter onClose={onClose} onSave={submit} />}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="公司 / 名稱" required className="sm:col-span-2"><input className={inputCls} value={f.name} onChange={set("name")} /></Field>
+            <Field label="統一編號"><input className={inputCls} inputMode="numeric" value={f.taxId} onChange={set("taxId")} /></Field>
+            <Field label="聯絡人"><input className={inputCls} value={f.contact} onChange={set("contact")} /></Field>
+            <Field label="電話"><input className={inputCls} inputMode="tel" value={f.phone} onChange={set("phone")} /></Field>
+            <Field label="Email"><input type="email" className={inputCls} value={f.email} onChange={set("email")} /></Field>
+            <Field label="地址" className="sm:col-span-2"><input className={inputCls} value={f.address} onChange={set("address")} /></Field>
+            <Field label="付款條件" className="sm:col-span-2"><input className={inputCls} placeholder="例如：月結30天、完工驗收付清" value={f.paymentTerm} onChange={set("paymentTerm")} /></Field>
+            <Field label="備註" className="sm:col-span-2"><textarea rows="2" className={inputCls} value={f.note} onChange={set("note")} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    function ProductForm({ initial, onSave, onClose }) {
+      const [f, setF] = useState({ code: "", type: "材料", name: "", unit: "式", cost: 0, price: 0, stock: 0, safetyStock: 0, ...initial });
+      const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+      const setN = k => v => setF(p => ({ ...p, [k]: v }));
+      const submit = () => {
+        if (!f.name.trim()) return alert("請填寫名稱");
+        onSave({ ...f, name: f.name.trim(), cost: num(f.cost), price: num(f.price), stock: num(f.stock), safetyStock: num(f.safetyStock) });
+      };
+      return (
+        <Modal title={initial && initial.id ? "編輯工項 / 材料" : "新增工項 / 材料"} onClose={onClose} footer={<FormFooter onClose={onClose} onSave={submit} />}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="名稱" required className="col-span-2"><input className={inputCls} value={f.name} onChange={set("name")} /></Field>
+            <Field label="類別">
+              <select className={inputCls} value={f.type} onChange={set("type")}>
+                <option value="材料">材料（管理庫存）</option>
+                <option value="工項">工項（施工服務）</option>
+              </select>
+            </Field>
+            <Field label="代碼"><input className={inputCls} value={f.code} onChange={set("code")} /></Field>
+            <Field label="單位"><input className={inputCls} value={f.unit} onChange={set("unit")} /></Field>
+            <div></div>
+            <Field label="成本單價"><NumInput value={f.cost} onChange={setN("cost")} /></Field>
+            <Field label="報價單價"><NumInput value={f.price} onChange={setN("price")} /></Field>
+            {f.type === "材料" && <>
+              <Field label="目前庫存"><NumInput value={f.stock} onChange={setN("stock")} /></Field>
+              <Field label="安全庫存" hint="庫存低於此數量會警示"><NumInput value={f.safetyStock} onChange={setN("safetyStock")} /></Field>
+            </>}
+          </div>
+        </Modal>
+      );
+    }
+
+    // 工項明細編輯區（報價單 / 採購單共用）
+    function ItemsEditor({ items, setItems, priceKey, priceLabel, showCostRef }) {
+      const D = useData();
+      const setItem = (i, patch) => setItems(items.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+      const addBlank = () => setItems([...items, { id: uid("it"), name: "", unit: "式", cost: 0, price: 0, quantity: 1 }]);
+      const addFromProduct = pid => {
+        const pr = D.products.find(x => x.id === pid);
+        if (!pr) return;
+        setItems([...items, { id: uid("it"), productId: pr.id, name: pr.name, unit: pr.unit || "式", cost: num(pr.cost), price: num(pr.price), quantity: 1 }]);
+      };
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-1" onClick={addBlank}>
+              <Icon name="plus" className="w-4 h-4" /> 新增空白項目
+            </button>
+            <select className={inputCls + " !w-auto"} value="" onChange={e => addFromProduct(e.target.value)}>
+              <option value="">從工項材料庫加入…</option>
+              {D.products.map(p => <option key={p.id} value={p.id}>{p.name}（{productType(p)}）</option>)}
+            </select>
+          </div>
+          {items.length === 0 && <div className="text-center text-xs text-slate-400 py-4 border border-dashed rounded-lg">尚未加入任何項目</div>}
+          {items.map((it, i) => (
+            <div key={it.id} className="border rounded-lg p-3 bg-slate-50 space-y-2">
+              <div className="flex gap-2">
+                <input className={inputCls + " font-bold"} placeholder="項目名稱 / 規格說明" value={it.name} onChange={e => setItem(i, { name: e.target.value })} />
+                <button type="button" className="text-rose-500 p-2 shrink-0" onClick={() => setItems(items.filter((_, idx) => idx !== i))}><Icon name="trash" className="w-4 h-4" /></button>
+              </div>
+              <div className={`grid grid-cols-2 ${showCostRef ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-2`}>
+                <Field label="單位"><input className={inputCls} value={it.unit || ""} onChange={e => setItem(i, { unit: e.target.value })} /></Field>
+                <Field label="數量"><NumInput value={it.quantity} onChange={v => setItem(i, { quantity: v })} /></Field>
+                {showCostRef && <Field label="成本（內部）"><NumInput value={it.cost} onChange={v => setItem(i, { cost: v })} /></Field>}
+                <Field label={priceLabel}><NumInput value={it[priceKey]} onChange={v => setItem(i, { [priceKey]: v })} /></Field>
+              </div>
+              <div className="text-right text-sm font-bold text-blue-700">小計 {money(num(it[priceKey]) * num(it.quantity))}</div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function QuotationForm({ initial, onSave, onClose }) {
+      const D = useData();
+      const [f, setF] = useState(() => ({
+        projectName: "", customerId: "", date: today(), status: "已成交", projectStatus: "施工中",
+        startDate: today(), endDate: "", dueDate: "", validity: "報價有效期 15 天",
+        delivery: "簽約確認後 14 個工作日內完工交付", discount: 0, items: [], ...initial
+      }));
+      const [newCust, setNewCust] = useState(false);
+      const [nc, setNc] = useState({ name: "", taxId: "", contact: "", phone: "", address: "" });
+      const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+      const setNcF = k => e => setNc(p => ({ ...p, [k]: e.target.value }));
+      const s = calcQuote(f.items, f.discount);
+
+      const submit = () => {
+        if (newCust ? !nc.name.trim() : !f.customerId) return alert(newCust ? "請填寫業主名稱" : "請選擇業主");
+        if (!f.items.length) return alert("請至少加入一項工項");
+        let cid = f.customerId;
+        let cname = (D.customers.find(c => c.id === cid) || {}).name || "";
+        if (newCust) {
+          const c = {
+            id: uid("c"), name: nc.name.trim(), taxId: nc.taxId.trim() || "-", contact: nc.contact.trim() || "-",
+            phone: nc.phone.trim() || "-", email: "-", address: nc.address.trim() || "-", paymentTerm: "完工付清", note: "開單時自動建立"
+          };
+          D.api.customers.add(c);
+          cid = c.id; cname = c.name;
+        }
+        onSave({
+          ...f, customerId: cid,
+          projectName: f.projectName.trim() || `${cname || "案場"}工程`,
+          discount: s.discount, subtotal: s.subtotal, totalCost: s.totalCost, tax: s.tax, total: s.total
+        });
+      };
+
+      return (
+        <Modal title={initial && initial.id ? `編輯報價單 ${initial.no || ""}` : "開立工程報價單"} size="max-w-3xl" onClose={onClose}
+          footer={<FormFooter onClose={onClose} onSave={submit} saveLabel={initial && initial.id ? "儲存變更" : "確認開立"} />}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Field label="工程案場名稱" className="col-span-2 sm:col-span-3">
+              <input className={inputCls + " font-bold"} placeholder="例如：信義區辦公大樓水電配管工程" value={f.projectName} onChange={set("projectName")} />
+            </Field>
+            <Field label="報價日期"><input type="date" className={inputCls} value={f.date} onChange={set("date")} /></Field>
+            <Field label="報價狀態">
+              <select className={inputCls} value={f.status} onChange={set("status")}>
+                <option value="已成交">已成交</option>
+                <option value="待回覆">待回覆</option>
+                <option value="未成交">未成交</option>
+              </select>
+            </Field>
+            <Field label="施工進度">
+              <select className={inputCls} value={f.projectStatus} onChange={set("projectStatus")}>
+                <option value="施工中">施工中</option>
+                <option value="預計施作">預計施作</option>
+                <option value="已完工">已完工</option>
+              </select>
+            </Field>
+            <Field label="預計開工日"><input type="date" className={inputCls} value={f.startDate} onChange={set("startDate")} /></Field>
+            <Field label="預計完工日"><input type="date" className={inputCls} value={f.endDate} onChange={set("endDate")} /></Field>
+            <Field label="預計收款日" hint="逾期會在應收帳款提醒"><input type="date" className={inputCls} value={f.dueDate} onChange={set("dueDate")} /></Field>
+          </div>
+
+          <div className="bg-slate-100 rounded-xl p-3 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-700">業主資訊</span>
+              <button type="button" className="text-xs text-blue-600 font-semibold" onClick={() => setNewCust(!newCust)}>
+                {newCust ? "從既有名冊選擇" : "+ 手動新增業主"}
+              </button>
+            </div>
+            {!newCust ? (
+              <select className={inputCls} value={f.customerId} onChange={set("customerId")}>
+                <option value="">選擇業主…</option>
+                {D.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <input className={inputCls + " col-span-2"} placeholder="業主 / 公司名稱 *" value={nc.name} onChange={setNcF("name")} />
+                <input className={inputCls} placeholder="統一編號" inputMode="numeric" value={nc.taxId} onChange={setNcF("taxId")} />
+                <input className={inputCls} placeholder="聯絡人" value={nc.contact} onChange={setNcF("contact")} />
+                <input className={inputCls} placeholder="電話" inputMode="tel" value={nc.phone} onChange={setNcF("phone")} />
+                <input className={inputCls} placeholder="地址" value={nc.address} onChange={setNcF("address")} />
+              </div>
+            )}
+          </div>
+
+          <ItemsEditor items={f.items} setItems={items => setF(p => ({ ...p, items }))} priceKey="price" priceLabel="報價單價" showCostRef />
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-1 text-sm">
+            <div className="flex justify-between"><span>小計</span><b>{money(s.subtotal)}</b></div>
+            <div className="flex justify-between items-center gap-3">
+              <span>折扣</span>
+              <NumInput className={inputCls + " !w-32 text-right"} value={f.discount} onChange={v => setF(p => ({ ...p, discount: v }))} />
+            </div>
+            <div className="flex justify-between"><span>營業稅 5%</span><b>{money(s.tax)}</b></div>
+            <div className="flex justify-between text-base border-t pt-1"><span className="font-bold">總計（含稅）</span><b className="text-blue-700">{money(s.total)}</b></div>
+            <div className="flex justify-between text-xs text-slate-500"><span>預估成本 {money(s.totalCost)}</span><span>預估毛利 {money(s.grossProfit)}（{s.margin}%）</span></div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="報價有效期"><input className={inputCls} value={f.validity} onChange={set("validity")} /></Field>
+            <Field label="交付 / 工期說明"><input className={inputCls} value={f.delivery} onChange={set("delivery")} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    function PurchaseForm({ initial, onSave, onClose }) {
+      const D = useData();
+      const [f, setF] = useState(() => ({
+        supplierId: "", date: today(), dueDate: "", projectId: "", withTax: false, note: "", items: [], ...initial
+      }));
+      const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+      const s = calcPurchase(f.items, f.withTax);
+      const submit = () => {
+        if (!f.supplierId) return alert("請選擇供應商");
+        if (!f.items.length) return alert("請至少加入一項採購品項");
+        onSave({ ...f, subtotal: s.subtotal, tax: s.tax, total: s.total });
+      };
+      const projects = D.quotations.filter(q => q.status === "已成交");
+      return (
+        <Modal title={initial && initial.id ? `編輯採購單 ${initial.no || ""}` : "新增採購單"} size="max-w-3xl" onClose={onClose}
+          footer={<FormFooter onClose={onClose} onSave={submit} />}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="供應商" required className="col-span-2">
+              <select className={inputCls} value={f.supplierId} onChange={set("supplierId")}>
+                <option value="">選擇供應商…</option>
+                {D.suppliers.map(s2 => <option key={s2.id} value={s2.id}>{s2.name}</option>)}
+              </select>
+            </Field>
+            <Field label="採購日期"><input type="date" className={inputCls} value={f.date} onChange={set("date")} /></Field>
+            <Field label="預計付款日"><input type="date" className={inputCls} value={f.dueDate} onChange={set("dueDate")} /></Field>
+            <Field label="歸屬工程（選填）" hint="選了才會計入該工程的材料成本" className="col-span-2">
+              <select className={inputCls} value={f.projectId} onChange={set("projectId")}>
+                <option value="">（不歸屬特定工程）</option>
+                {projects.map(q => <option key={q.id} value={q.id}>{q.no}　{q.projectName}</option>)}
+              </select>
+            </Field>
+          </div>
+          <ItemsEditor items={f.items} setItems={items => setF(p => ({ ...p, items }))} priceKey="cost" priceLabel="進貨單價" />
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-1 text-sm">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={!!f.withTax} onChange={e => setF(p => ({ ...p, withTax: e.target.checked }))} /> 另加 5% 營業稅（單價為未稅時勾選）</label>
+            <div className="flex justify-between"><span>未稅金額</span><b>{money(s.subtotal)}</b></div>
+            <div className="flex justify-between"><span>稅額</span><b>{money(s.tax)}</b></div>
+            <div className="flex justify-between text-base border-t pt-1"><span className="font-bold">應付總額</span><b className="text-blue-700">{money(s.total)}</b></div>
+          </div>
+          <Field label="備註"><textarea rows="2" className={inputCls} value={f.note} onChange={set("note")} /></Field>
+        </Modal>
+      );
+    }
+
+    function EmployeeForm({ initial, onSave, onClose }) {
+      const [f, setF] = useState({ name: "", title: "", phone: "", payType: "日薪", rate: 0, active: true, note: "", ...initial });
+      const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+      const submit = () => {
+        if (!f.name.trim()) return alert("請填寫姓名");
+        onSave({ ...f, name: f.name.trim(), rate: num(f.rate) });
+      };
+      return (
+        <Modal title={initial && initial.id ? "編輯員工" : "新增員工"} onClose={onClose} footer={<FormFooter onClose={onClose} onSave={submit} />}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="姓名" required><input className={inputCls} value={f.name} onChange={set("name")} /></Field>
+            <Field label="職稱 / 工種"><input className={inputCls} placeholder="例如：水電師傅" value={f.title} onChange={set("title")} /></Field>
+            <Field label="電話"><input className={inputCls} inputMode="tel" value={f.phone} onChange={set("phone")} /></Field>
+            <Field label="計薪方式">
+              <select className={inputCls} value={f.payType} onChange={set("payType")}>
+                <option value="日薪">日薪</option><option value="月薪">月薪</option><option value="時薪">時薪</option>
+              </select>
+            </Field>
+            <Field label={`${f.payType}金額`} hint={f.payType === "月薪" ? "工時成本以 月薪÷30÷8 換算" : f.payType === "日薪" ? "工時成本以 日薪÷8 換算" : ""}>
+              <NumInput value={f.rate} onChange={v => setF(p => ({ ...p, rate: v }))} />
+            </Field>
+            <Field label="在職狀態">
+              <select className={inputCls} value={f.active ? "1" : "0"} onChange={e => setF(p => ({ ...p, active: e.target.value === "1" }))}>
+                <option value="1">在職</option><option value="0">離職</option>
+              </select>
+            </Field>
+            <Field label="備註" className="col-span-2"><textarea rows="2" className={inputCls} value={f.note} onChange={set("note")} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    // 出工登記：一次勾選多位員工
+    function TimesheetForm({ onSave, onClose }) {
+      const D = useData();
+      const emps = D.employees.filter(e => e.active !== false);
+      const [f, setF] = useState({ date: today(), projectId: "", hours: 8, note: "" });
+      const [picked, setPicked] = useState([]);
+      const toggle = id => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+      const submit = () => {
+        if (!picked.length) return alert("請至少勾選一位出工人員");
+        if (num(f.hours) <= 0) return alert("請填寫工時");
+        onSave(picked.map(id => {
+          const e = emps.find(x => x.id === id);
+          return {
+            id: uid("ts"), date: f.date, employeeId: id, projectId: f.projectId, hours: num(f.hours), note: f.note,
+            cost: Math.round(num(f.hours) * hourlyOf(e))
+          };
+        }));
+      };
+      const projects = D.quotations.filter(q => q.status === "已成交");
+      return (
+        <Modal title="新增出工登記" onClose={onClose} footer={<FormFooter onClose={onClose} onSave={submit} saveLabel="登記出工" />}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="日期"><input type="date" className={inputCls} value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></Field>
+            <Field label="工時（小時）" hint="一天 = 8 小時"><NumInput value={f.hours} onChange={v => setF({ ...f, hours: v })} /></Field>
+            <Field label="工程案場" className="col-span-2">
+              <select className={inputCls} value={f.projectId} onChange={e => setF({ ...f, projectId: e.target.value })}>
+                <option value="">（公司內務 / 不歸屬工程）</option>
+                {projects.map(q => <option key={q.id} value={q.id}>{q.no}　{q.projectName}</option>)}
+              </select>
+            </Field>
+            <div className="col-span-2">
+              <span className="block text-xs font-bold text-slate-600 mb-1">出工人員（可複選）</span>
+              {emps.length === 0 && <div className="text-xs text-slate-400 border border-dashed rounded-lg p-3">尚無在職員工，請先到「員工名冊」新增。</div>}
+              <div className="grid grid-cols-2 gap-2">
+                {emps.map(e => (
+                  <label key={e.id} className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm cursor-pointer ${picked.includes(e.id) ? "bg-blue-50 border-blue-400" : "bg-white"}`}>
+                    <input type="checkbox" checked={picked.includes(e.id)} onChange={() => toggle(e.id)} />
+                    <span className="font-semibold">{e.name}</span>
+                    <span className="text-xs text-slate-400">{e.title}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Field label="備註" className="col-span-2"><input className={inputCls} value={f.note} onChange={e => setF({ ...f, note: e.target.value })} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    const CATEGORY_HINTS = ["工程款收入", "材料採購", "工程五金材料採購", "薪資支出", "機具租賃", "運費", "水電雜支", "辦公費用", "稅金"];
+
+    function TransactionForm({ onSave, onClose }) {
+      const D = useData();
+      const [f, setF] = useState({ type: "expense", date: today(), category: "", amount: "", projectId: "", note: "" });
+      const set = k => e => setF(p => ({ ...p, [k]: e.target.value }));
+      const submit = () => {
+        if (!f.category.trim()) return alert("請填寫分類");
+        if (num(f.amount) <= 0) return alert("請填寫金額");
+        onSave({ ...f, id: uid("t"), category: f.category.trim(), amount: num(f.amount), refNo: "" });
+      };
+      return (
+        <Modal title="手動記帳" onClose={onClose} footer={<FormFooter onClose={onClose} onSave={submit} />}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <Seg value={f.type} onChange={v => setF(p => ({ ...p, type: v }))} options={[{ value: "expense", label: "支出" }, { value: "income", label: "收入" }]} />
+            </div>
+            <Field label="日期"><input type="date" className={inputCls} value={f.date} onChange={set("date")} /></Field>
+            <Field label="金額" required><NumInput value={f.amount} onChange={v => setF(p => ({ ...p, amount: v }))} /></Field>
+            <Field label="分類" required className="col-span-2">
+              <input className={inputCls} list="cat-hints" value={f.category} onChange={set("category")} />
+              <datalist id="cat-hints">{CATEGORY_HINTS.map(c => <option key={c} value={c} />)}</datalist>
+            </Field>
+            <Field label="歸屬工程（選填）" hint="支出選了工程，會計入該工程的其他成本" className="col-span-2">
+              <select className={inputCls} value={f.projectId} onChange={set("projectId")}>
+                <option value="">（不歸屬特定工程）</option>
+                {D.quotations.filter(q => q.status === "已成交").map(q => <option key={q.id} value={q.id}>{q.no}　{q.projectName}</option>)}
+              </select>
+            </Field>
+            <Field label="備註" className="col-span-2"><input className={inputCls} value={f.note} onChange={set("note")} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    // 登錄收款 / 付款
+    function PaymentModal({ title, balance, onSave, onClose }) {
+      const [f, setF] = useState({ date: today(), amount: balance, note: "" });
+      const submit = () => {
+        const a = num(f.amount);
+        if (a <= 0) return alert("請填寫金額");
+        if (a > balance && !confirm(`金額 ${money(a)} 超過未結餘額 ${money(balance)}，確定要登錄嗎？`)) return;
+        onSave({ date: f.date, amount: a, note: f.note });
+      };
+      return (
+        <Modal title={title} onClose={onClose} size="max-w-md" footer={<FormFooter onClose={onClose} onSave={submit} saveLabel="確認登錄" />}>
+          <div className="text-sm text-slate-500">未結餘額：<b className="text-slate-900">{money(balance)}</b></div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="日期"><input type="date" className={inputCls} value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></Field>
+            <Field label="金額"><NumInput value={f.amount} onChange={v => setF({ ...f, amount: v })} /></Field>
+            <Field label="備註（例如：第一期款、匯款後五碼）" className="col-span-2"><input className={inputCls} value={f.note} onChange={e => setF({ ...f, note: e.target.value })} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    function PaymentHistory({ title, entries, onDelete, onClose }) {
+      return (
+        <Modal title={title} onClose={onClose} size="max-w-lg" footer={<button type="button" className={btnGhost} onClick={onClose}>關閉</button>}>
+          {entries.length === 0 && <div className="text-center text-sm text-slate-400 py-6">尚無紀錄</div>}
+          {entries.map(e => (
+            <div key={e.id} className="flex items-center justify-between gap-3 border rounded-lg px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="font-bold">{money(e.amount)}</div>
+                <div className="text-xs text-slate-500 break-words">{e.date}{e.note ? `　${e.note}` : ""}</div>
+              </div>
+              <ActBtn tone="rose" onClick={() => { if (confirm("確定刪除這筆紀錄？對應的財務收支也會一併刪除。")) onDelete(e.id); }}>刪除</ActBtn>
+            </div>
+          ))}
+          {entries.length > 0 && <div className="text-right text-sm font-bold">合計 {money(sum(entries, e => e.amount))}</div>}
+        </Modal>
+      );
+    }
+
+    function PayrollModal({ emp, month, suggested, onSave, onClose }) {
+      const [f, setF] = useState({ date: today(), amount: suggested, note: "" });
+      return (
+        <Modal title={`發放薪資 - ${emp.name}（${month}）`} onClose={onClose} size="max-w-md"
+          footer={<FormFooter onClose={onClose} onSave={() => { if (num(f.amount) <= 0) return alert("請填寫金額"); onSave({ date: f.date, amount: num(f.amount), note: f.note }); }} saveLabel="確認發放" />}>
+          <div className="text-sm text-slate-500">系統試算：<b className="text-slate-900">{money(suggested)}</b>（可自行加減獎金、扣款後再發放）</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="發放日期"><input type="date" className={inputCls} value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></Field>
+            <Field label="實發金額"><NumInput value={f.amount} onChange={v => setF({ ...f, amount: v })} /></Field>
+            <Field label="備註" className="col-span-2"><input className={inputCls} value={f.note} onChange={e => setF({ ...f, note: e.target.value })} /></Field>
+          </div>
+        </Modal>
+      );
+    }
+
+    /* ===================== 儀表板 ===================== */
+    function Dashboard({ go }) {
+      const D = useData();
+      const cur = today().slice(0, 7);
+      const running = D.quotations.filter(q => q.status === "已成交" && q.projectStatus === "施工中");
+      const upcoming = D.quotations.filter(q => (q.status === "已成交" && q.projectStatus === "預計施作") || q.status === "待回覆");
+      const monthTx = D.transactions.filter(t => monthOf(t.date) === cur);
+      const inc = sum(monthTx.filter(t => t.type === "income"), t => t.amount);
+      const exp = sum(monthTx.filter(t => t.type === "expense"), t => t.amount);
+      const withSt = rows => rows.map(r => ({ ...r, st: balanceStatus(r.total, r.paid, r.due) })).filter(r => r.st.balance > 0);
+      const ar = withSt(arRows(D));
+      const ap = withSt(apRows(D));
+      const arBal = sum(ar, r => r.st.balance), apBal = sum(ap, r => r.st.balance);
+      const arOver = ar.filter(r => r.st.overdue), apOver = ap.filter(r => r.st.overdue);
+      const low = D.products.filter(p => productType(p) === "材料" && num(p.stock) <= num(p.safetyStock));
+      const months = lastMonths(6).map(m => ({
+        m,
+        inc: sum(D.transactions.filter(t => t.type === "income" && monthOf(t.date) === m), t => t.amount),
+        exp: sum(D.transactions.filter(t => t.type === "expense" && monthOf(t.date) === m), t => t.amount)
+      }));
+      const max = Math.max(1, ...months.map(x => Math.max(x.inc, x.exp)));
+
+      return (
+        <div className="space-y-6 max-w-6xl">
+          <PageHeader title={`${D.company.name} - 營運儀表板`} subtitle="即時掌握工程、帳款與庫存狀況">
+            <button className={btnPrimary} onClick={() => go("quotations")}><Icon name="file" className="w-4 h-4" /> 前往報價單</button>
+          </PageHeader>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label={`施工中工程 (${running.length})`} value={money(sum(running, p => p.total))} tone="blue" onClick={() => go("projects")} />
+            <Stat label={`預計施作 / 待回覆 (${upcoming.length})`} value={money(sum(upcoming, p => p.total))} tone="amber" onClick={() => go("quotations")} />
+            <Stat label="本月收入" value={money(inc)} tone="emerald" onClick={() => go("finance")} />
+            <Stat label="本月支出" value={money(exp)} tone="rose" sub={`本月淨額 ${money(inc - exp)}`} onClick={() => go("finance")} />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label="應收未收" value={money(arBal)} tone="blue" sub={arOver.length ? `⚠ 逾期 ${arOver.length} 筆 ${money(sum(arOver, r => r.st.balance))}` : "無逾期"} onClick={() => go("receivables")} />
+            <Stat label="應付未付" value={money(apBal)} tone="amber" sub={apOver.length ? `⚠ 逾期 ${apOver.length} 筆 ${money(sum(apOver, r => r.st.balance))}` : "無逾期"} onClick={() => go("payables")} />
+            <Stat label="低庫存材料" value={`${low.length} 項`} tone={low.length ? "rose" : "slate"} sub={low.length ? "請盡快採購補貨" : "庫存充足"} onClick={() => go("products")} />
+            <Stat label="在職員工" value={`${D.employees.filter(e => e.active !== false).length} 人`} tone="slate" onClick={() => go("employees")} />
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <h3 className="font-bold text-sm text-slate-800 mb-3">近 6 個月收支</h3>
+            <div className="flex items-end gap-2">
+              {months.map(x => (
+                <div key={x.m} className="flex-1 min-w-0">
+                  <div className="flex items-end justify-center gap-1 h-28">
+                    <div className="w-1/3 bg-emerald-500 rounded-t" style={{ height: `${Math.max(x.inc ? 3 : 0, x.inc / max * 100)}%` }} title={`收入 ${money(x.inc)}`}></div>
+                    <div className="w-1/3 bg-rose-400 rounded-t" style={{ height: `${Math.max(x.exp ? 3 : 0, x.exp / max * 100)}%` }} title={`支出 ${money(x.exp)}`}></div>
+                  </div>
+                  <div className="text-[10px] text-slate-500 text-center mt-1">{x.m.slice(5)}月</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-4 justify-center text-xs text-slate-500 mt-2">
+              <span><span className="inline-block w-2 h-2 bg-emerald-500 rounded-sm mr-1"></span>收入</span>
+              <span><span className="inline-block w-2 h-2 bg-rose-400 rounded-sm mr-1"></span>支出</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+              <h3 className="font-bold text-sm text-blue-900 border-b pb-2">施工中工程清單</h3>
+              {running.map(p => (
+                <div key={p.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center gap-3 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 text-sm break-words">{p.projectName}</div>
+                    <div className="text-slate-500 mt-0.5">工期：{p.startDate || "-"} ~ {p.endDate || "完工止"}</div>
+                  </div>
+                  <div className="text-right font-bold text-blue-600 shrink-0">{money(p.total)}</div>
+                </div>
+              ))}
+              {running.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前無施工中工程</div>}
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+              <h3 className="font-bold text-sm text-amber-900 border-b pb-2">預計施作 / 待回覆報價</h3>
+              {upcoming.map(p => (
+                <div key={p.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center gap-3 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 text-sm break-words">{p.projectName}</div>
+                    <div className="text-slate-500 mt-0.5">{p.status === "待回覆" ? "待業主回覆" : `預計進場：${p.startDate || "-"}`}</div>
+                  </div>
+                  <div className="text-right font-bold text-amber-600 shrink-0">{money(p.total)}</div>
+                </div>
+              ))}
+              {upcoming.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前無排程中工程</div>}
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+              <h3 className="font-bold text-sm text-slate-800 border-b pb-2">待收款項（前 5 筆）</h3>
+              {ar.slice(0, 5).map(r => (
+                <div key={r.id} className="p-3 bg-slate-50 rounded-lg flex justify-between items-center gap-3 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 text-sm break-words">{r.title}</div>
+                    <div className="text-slate-500 mt-0.5">{r.party}{r.due ? `　期限 ${r.due}` : ""}</div>
+                  </div>
+                  <div className="text-right shrink-0"><div className="font-bold text-slate-900">{money(r.st.balance)}</div><Badge cls={r.st.cls}>{r.st.label}</Badge></div>
+                </div>
+              ))}
+              {ar.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">目前沒有待收款項</div>}
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+              <h3 className="font-bold text-sm text-rose-900 border-b pb-2">低庫存材料</h3>
+              {low.map(p => (
+                <div key={p.id} className="p-3 bg-rose-50 rounded-lg flex justify-between items-center gap-3 text-xs">
+                  <div className="font-bold text-slate-900 text-sm break-words">{p.name}</div>
+                  <div className="text-right shrink-0 text-rose-700 font-bold">庫存 {num(p.stock)} / 安全 {num(p.safetyStock)} {p.unit}</div>
+                </div>
+              ))}
+              {low.length === 0 && <div className="text-slate-400 text-center py-6 text-xs">庫存充足</div>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===================== 報價單 ===================== */
+    function Quotations({ onPreview }) {
+      const D = useData();
+      const A = D.api.quotations;
+      const [edit, setEdit] = useState(null);
+      const [kw, setKw] = useState("");
+      const custName = id => (D.customers.find(c => c.id === id) || {}).name || "-";
+      const rows = D.quotations.filter(q => !kw || [q.no, q.projectName, custName(q.customerId)].join(" ").toLowerCase().includes(kw.toLowerCase()));
+      const save = data => {
+        if (data.id) A.update(data.id, data);
+        else A.add({ ...data, id: uid("q"), no: nextNo("QUO", D.quotations), receipts: [] });
+        setEdit(null);
+      };
+      const del = q => {
+        const rec = receiptsOf(q, D.transactions);
+        const linked = D.purchases.some(p => p.projectId === q.id) || D.timesheets.some(t => t.projectId === q.id);
+        const msg = `確定刪除報價單「${q.no}」？`
+          + (rec.length ? `\n其 ${rec.length} 筆收款紀錄（含財務收支）會一併刪除。` : "")
+          + (linked ? "\n注意：已有採購單或工時連結此工程，刪除後這些紀錄會變成「未歸屬工程」。" : "");
+        if (!confirm(msg)) return;
+        rec.forEach(r => r.txId && D.api.transactions.remove(r.txId));
+        A.remove(q.id);
+      };
+      const statusCls = s => s === "已成交" ? "bg-emerald-100 text-emerald-800" : s === "待回覆" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600";
+      const columns = [
+        { label: "單號", render: q => <span className="font-mono font-bold text-blue-600">{q.no}</span> },
+        { label: "工程名稱", render: q => <span className="font-bold text-slate-900">{q.projectName}</span> },
+        { label: "業主", render: q => custName(q.customerId) },
+        { label: "報價狀態", render: q => <Badge cls={statusCls(q.status)}>{q.status || "已成交"}</Badge> },
+        { label: "進度", render: q => <span className="text-xs font-semibold text-blue-700">{q.projectStatus}</span> },
+        { label: "總金額（含稅）", align: "right", render: q => <b>{money(q.total)}</b> },
+        {
+          label: "操作", align: "center", actions: true, render: q => (
+            <div className="flex flex-wrap gap-2 justify-center">
+              <ActBtn onClick={() => onPreview(q.id)}>預覽列印</ActBtn>
+              <ActBtn tone="slate" onClick={() => setEdit(q)}>編輯</ActBtn>
+              <ActBtn tone="rose" onClick={() => del(q)}>刪除</ActBtn>
+            </div>
+          )
+        }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="工程報價單" subtitle="開立、編輯並列印報價單">
+            <SearchBox value={kw} onChange={setKw} placeholder="搜尋單號 / 工程 / 業主" />
+            <button className={btnPrimary} onClick={() => setEdit("new")}><Icon name="plus" className="w-4 h-4" /> 開立新報價單</button>
+          </PageHeader>
+          <DataList columns={columns} rows={rows} empty="尚無報價單，點右上角「開立新報價單」開始" />
+          {edit && <QuotationForm initial={edit === "new" ? {} : edit} onSave={save} onClose={() => setEdit(null)} />}
+        </div>
+      );
+    }
+
+    function QuotePreview({ qid, onClose }) {
+      const D = useData();
+      const q = D.quotations.find(x => x.id === qid);
+      if (!q) return null;
+      const c = D.customers.find(x => x.id === q.customerId) || {};
+      const co = D.company;
+      const taxable = num(q.subtotal) - num(q.discount);
+      const th = "bg-emerald-50/80 font-bold text-slate-800 text-center border-r border-slate-900 px-2 py-1.5 w-28 shrink-0";
+      return (
+        <div className="fixed inset-0 z-50 bg-black/60 overflow-y-auto">
+          <div className="min-h-full flex items-start justify-center p-2 sm:p-6">
+            <div className="bg-white rounded-xl w-full max-w-3xl shadow-2xl p-3 sm:p-6 space-y-4">
+              <div className="no-print flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 border-b pb-3">
+                <span className="font-bold text-slate-700">工程報價單預覽（A4）</span>
+                <div className="flex gap-2">
+                  <button className={btnPrimary} onClick={() => window.print()}><Icon name="printer" className="w-4 h-4" /> 列印 / 存為 PDF</button>
+                  <button className={btnGhost} onClick={onClose}>關閉</button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <div id="printable-area" className="bg-white p-5 sm:p-8 border border-slate-300 rounded min-w-[640px] space-y-4 text-slate-900">
+                  <div className="flex justify-between items-start border-b-2 border-slate-900 pb-3">
+                    <div>
+                      <h1 className="text-3xl font-black tracking-wider">{co.name}</h1>
+                      <div className="text-xs text-slate-500 font-bold tracking-widest mt-0.5">工 程 報 價 單 (QUOTATION)</div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <div className="font-mono font-bold text-blue-700 text-lg">{q.no}</div>
+                      <div className="text-slate-500">日期：{q.date}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-slate-500">業主資料</div>
+                      <div className="font-bold text-base">{c.name || "-"}</div>
+                      {c.taxId && c.taxId !== "-" && <div>統一編號：{c.taxId}</div>}
+                      <div>聯絡人：{c.contact || "-"}　電話：{c.phone || "-"}</div>
+                      <div>地址：{c.address || "-"}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-slate-500">工程資料</div>
+                      <div className="font-bold text-base break-words">{q.projectName}</div>
+                      <div>預計工期：{q.startDate || "-"} ~ {q.endDate || "-"}</div>
+                      {c.paymentTerm && <div>付款條件：{c.paymentTerm}</div>}
+                    </div>
+                  </div>
+
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-white font-semibold">
+                        <th className="p-2 text-center w-10">項次</th>
+                        <th className="p-2 text-left">工程項目 / 規格說明</th>
+                        <th className="p-2 text-center w-14">單位</th>
+                        <th className="p-2 text-right w-24">單價</th>
+                        <th className="p-2 text-center w-14">數量</th>
+                        <th className="p-2 text-right w-28">小計 (NT$)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y border-b">
+                      {(q.items || []).map((it, i) => (
+                        <tr key={it.id || i}>
+                          <td className="p-2 text-center text-slate-500">{i + 1}</td>
+                          <td className="p-2 font-medium">{it.name}</td>
+                          <td className="p-2 text-center text-slate-500">{it.unit || "式"}</td>
+                          <td className="p-2 text-right">{num(it.price).toLocaleString()}</td>
+                          <td className="p-2 text-center">{num(it.quantity)}</td>
+                          <td className="p-2 text-right font-medium">{(num(it.price) * num(it.quantity)).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="flex justify-end">
+                    <div className="w-64 text-sm space-y-1">
+                      <div className="flex justify-between"><span>小計</span><span>{money(q.subtotal)}</span></div>
+                      {num(q.discount) > 0 && <div className="flex justify-between"><span>折扣</span><span>- {money(q.discount)}</span></div>}
+                      <div className="flex justify-between"><span>未稅金額</span><span>{money(taxable)}</span></div>
+                      <div className="flex justify-between"><span>營業稅 5%</span><span>{money(q.tax)}</span></div>
+                      <div className="flex justify-between border-t-2 border-slate-900 pt-1 font-bold text-base"><span>總報價金額（含稅）</span><span>{money(q.total)}</span></div>
+                      <div className="text-right text-xs text-slate-500">新台幣 {cnUpper(q.total)}</div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs space-y-0.5 border-t pt-2">
+                    <div className="font-bold text-slate-700">備註條款</div>
+                    {q.validity && <div>1. {q.validity}</div>}
+                    {q.delivery && <div>2. {q.delivery}</div>}
+                    {co.bankAccount && <div>3. 匯款資訊：{co.bankName}　帳號 {co.bankAccount}　戶名 {co.bankOwner}</div>}
+                  </div>
+
+                  <div className="border-2 border-slate-900 text-xs">
+                    <div className="grid grid-cols-12 divide-x-2 divide-slate-900 items-stretch">
+                      <div className="col-span-8 divide-y divide-slate-900">
+                        <div className="flex items-center"><div className={th}>廠 商 名 稱</div><div className="py-1.5 px-3 font-bold flex-1">{co.name}</div></div>
+                        <div className="flex items-center"><div className={th}>負責人、聯絡人</div><div className="py-1.5 px-3 font-semibold flex-1">{co.contact}</div></div>
+                        <div className="flex items-center"><div className={th}>電　　　話</div><div className="py-1.5 px-3 font-mono font-semibold flex-1">{co.phone}</div></div>
+                        {co.taxId && co.taxId !== "-" && <div className="flex items-center"><div className={th}>統 一 編 號</div><div className="py-1.5 px-3 font-mono flex-1">{co.taxId}</div></div>}
+                        <div className="flex items-center"><div className={th}>地　　　址</div><div className="py-1.5 px-3 font-medium flex-1">{co.address}</div></div>
+                      </div>
+                      <div className="col-span-4 p-2 flex items-center justify-center bg-slate-50/50 min-h-[110px]">
+                        <div className="w-36 h-20 border-2 border-dashed border-blue-600/70 rounded-full flex flex-col items-center justify-center text-blue-700/85 p-1 text-center font-serif bg-white/40">
+                          <div className="text-[11px] font-extrabold tracking-widest">{co.name}</div>
+                          <div className="text-[13px] font-black tracking-wider my-0.5 border-y border-blue-600/50 px-2">估價專用章</div>
+                          <div className="text-[9px] font-mono font-bold leading-none">TEL: {co.phone}</div>
+                          <div className="text-[7.5px] truncate max-w-[130px] mt-0.5">{co.address}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6 pt-4 text-xs text-slate-500">
+                    <div className="border-b border-slate-400 pb-6">業主簽章：</div>
+                    <div className="border-b border-slate-400 pb-6">日期：</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===================== 工程專案成本 ===================== */
+    function Projects() {
+      const D = useData();
+      const [detail, setDetail] = useState(null);
+      const deals = D.quotations.filter(q => q.status === "已成交");
+      const rows = deals.map(q => ({ id: q.id, q, st: projectStats(q, D) }));
+      const totRev = sum(rows, r => r.st.revenue), totAct = sum(rows, r => r.st.actual), totProfit = totRev - totAct;
+      const custName = id => (D.customers.find(c => c.id === id) || {}).name || "-";
+      const marginCls = m => m >= 20 ? "text-emerald-600" : m >= 0 ? "text-amber-600" : "text-rose-600";
+      const columns = [
+        { label: "工程", render: r => <div><div className="font-bold text-slate-900">{r.q.projectName}</div><div className="text-xs text-slate-500">{r.q.no}　{custName(r.q.customerId)}</div></div> },
+        {
+          label: "進度", render: r => (
+            <select className="border border-slate-300 rounded-md px-2 py-1 text-xs bg-white" value={r.q.projectStatus} onChange={e => D.api.quotations.update(r.q.id, { projectStatus: e.target.value })}>
+              <option value="施工中">施工中</option><option value="預計施作">預計施作</option><option value="已完工">已完工</option>
+            </select>
+          )
+        },
+        { label: "合約額（未稅）", align: "right", render: r => money(r.st.revenue) },
+        { label: "預估成本", align: "right", render: r => <span className="text-slate-500">{money(r.st.est)}</span> },
+        { label: "實際成本", align: "right", render: r => <b>{money(r.st.actual)}</b> },
+        { label: "實際毛利", align: "right", render: r => <b className={marginCls(r.st.margin)}>{money(r.st.profit)}</b> },
+        { label: "毛利率", align: "right", render: r => <b className={marginCls(r.st.margin)}>{r.st.margin.toFixed(1)}%</b> },
+        { label: "收款進度", align: "right", render: r => `${Math.min(100, Math.round(r.st.received / Math.max(1, num(r.q.total)) * 100))}%` },
+        { label: "操作", align: "center", actions: true, render: r => <ActBtn onClick={() => setDetail(r.id)}>成本明細</ActBtn> }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="工程專案成本" subtitle="實際成本 = 歸屬該工程的採購（未稅）+ 工時人工 + 其他支出" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label="合約總額（未稅）" value={money(totRev)} tone="blue" />
+            <Stat label="實際成本" value={money(totAct)} tone="amber" />
+            <Stat label="實際毛利" value={money(totProfit)} tone={totProfit >= 0 ? "emerald" : "rose"} />
+            <Stat label="整體毛利率" value={`${totRev > 0 ? (totProfit / totRev * 100).toFixed(1) : "0.0"}%`} tone="slate" />
+          </div>
+          <DataList columns={columns} rows={rows} empty="尚無已成交工程。到「工程報價單」把報價狀態設為「已成交」即可顯示。" />
+          {detail && <ProjectDetail qid={detail} onClose={() => setDetail(null)} />}
+        </div>
+      );
+    }
+
+    function ProjectDetail({ qid, onClose }) {
+      const D = useData();
+      const q = D.quotations.find(x => x.id === qid);
+      if (!q) return null;
+      const st = projectStats(q, D);
+      const empName = id => (D.employees.find(e => e.id === id) || {}).name || "（已刪除）";
+      const supName = id => (D.suppliers.find(s => s.id === id) || {}).name || "-";
+      const Row = ({ k, v, bold }) => <div className={`flex justify-between gap-3 text-sm ${bold ? "font-bold border-t pt-1" : ""}`}><span className="text-slate-600">{k}</span><span>{v}</span></div>;
+      return (
+        <Modal title={`成本明細 - ${q.projectName}`} size="max-w-2xl" onClose={onClose} footer={<button className={btnGhost} onClick={onClose}>關閉</button>}>
+          <div className="space-y-1 bg-slate-50 rounded-lg p-3">
+            <Row k="合約額（未稅）" v={money(st.revenue)} />
+            <Row k="預估成本（報價時）" v={money(st.est)} />
+            <Row k="實際材料採購（未稅）" v={money(st.material)} />
+            <Row k="實際人工（工時）" v={money(st.labor)} />
+            <Row k="其他直接支出" v={money(st.other)} />
+            <Row k="實際成本合計" v={money(st.actual)} bold />
+            <Row k="實際毛利" v={<b className={st.profit >= 0 ? "text-emerald-600" : "text-rose-600"}>{money(st.profit)}（{st.margin.toFixed(1)}%）</b>} bold />
+            <Row k="已收款 / 含稅總額" v={`${money(st.received)} / ${money(q.total)}`} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-600 mb-1">採購單（{st.purchases.length}）</div>
+            {st.purchases.length === 0 && <div className="text-xs text-slate-400">無</div>}
+            {st.purchases.map(p => <div key={p.id} className="flex justify-between text-sm border-b py-1"><span>{p.date}　{p.no}　{supName(p.supplierId)}</span><span>{money(p.subtotal)}</span></div>)}
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-600 mb-1">出工紀錄（{st.sheets.length}）</div>
+            {st.sheets.length === 0 && <div className="text-xs text-slate-400">無</div>}
+            {st.sheets.map(t => <div key={t.id} className="flex justify-between text-sm border-b py-1"><span>{t.date}　{empName(t.employeeId)}　{t.hours} 小時</span><span>{money(t.cost)}</span></div>)}
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-600 mb-1">其他支出（{st.otherTx.length}）</div>
+            {st.otherTx.length === 0 && <div className="text-xs text-slate-400">無</div>}
+            {st.otherTx.map(t => <div key={t.id} className="flex justify-between text-sm border-b py-1"><span>{t.date}　{t.category}　{t.note}</span><span>{money(t.amount)}</span></div>)}
+          </div>
+        </Modal>
+      );
+    }
+
+    /* ===================== 客戶 / 供應商 ===================== */
+    function PartyPage({ kind }) {
+      const D = useData();
+      const isCust = kind === "customers";
+      const A = D.api[kind];
+      const list = D[kind];
+      const label = isCust ? "客戶" : "供應商";
+      const [edit, setEdit] = useState(null);
+      const [kw, setKw] = useState("");
+      const rows = list.filter(c => !kw || [c.name, c.contact, c.phone, c.taxId].join(" ").toLowerCase().includes(kw.toLowerCase()));
+      const save = data => {
+        if (data.id) A.update(data.id, data); else A.add({ ...data, id: uid(isCust ? "c" : "s") });
+        setEdit(null);
+      };
+      const del = c => {
+        const used = isCust ? D.quotations.some(q => q.customerId === c.id) : D.purchases.some(p => p.supplierId === c.id);
+        if (used) return alert(`此${label}已有${isCust ? "報價單" : "採購單"}紀錄，無法刪除。`);
+        if (confirm(`確定刪除${label}「${c.name}」？`)) A.remove(c.id);
+      };
+      const columns = [
+        { label: "公司名稱", render: c => <span className="font-bold text-slate-900">{c.name}</span> },
+        { label: "統編", render: c => <span className="font-mono">{c.taxId || "-"}</span> },
+        { label: "聯絡人", render: c => c.contact || "-" },
+        { label: "電話", render: c => <span className="font-mono">{c.phone || "-"}</span> },
+        { label: "Email", render: c => <span className="break-all">{c.email || "-"}</span> },
+        { label: "地址", render: c => <span className="text-xs text-slate-500">{c.address || "-"}</span> },
+        { label: "付款條件", render: c => c.paymentTerm || "-" },
+        {
+          label: "操作", align: "center", actions: true, render: c => (
+            <div className="flex flex-wrap gap-2 justify-center">
+              <ActBtn tone="slate" onClick={() => setEdit(c)}>編輯</ActBtn>
+              <ActBtn tone="rose" onClick={() => del(c)}>刪除</ActBtn>
+            </div>
+          )
+        }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title={isCust ? "客戶與業主名冊" : "供應商名冊"} subtitle={`共 ${list.length} 筆`}>
+            <SearchBox value={kw} onChange={setKw} />
+            <button className={btnPrimary} onClick={() => setEdit("new")}><Icon name="plus" className="w-4 h-4" /> 新增{label}</button>
+          </PageHeader>
+          <DataList columns={columns} rows={rows} empty={`尚無${label}資料`} />
+          {edit && <PartyForm title={edit === "new" ? `新增${label}` : `編輯${label}`} initial={edit === "new" ? {} : edit} onSave={save} onClose={() => setEdit(null)} />}
+        </div>
+      );
+    }
+
+    /* ===================== 工項材料與庫存 ===================== */
+    function Products() {
+      const D = useData();
+      const A = D.api.products;
+      const [edit, setEdit] = useState(null);
+      const [flt, setFlt] = useState("all");
+      const rows = D.products.filter(p => flt === "all" || productType(p) === flt);
+      const save = data => {
+        if (data.id) A.update(data.id, data); else A.add({ ...data, id: uid("p") });
+        setEdit(null);
+      };
+      const del = p => { if (confirm(`確定刪除「${p.name}」？（已開立的報價單 / 採購單不受影響）`)) A.remove(p.id); };
+      const columns = [
+        { label: "名稱", render: p => <div><span className="font-bold text-slate-900">{p.name}</span><div className="text-xs text-slate-400 font-mono">{p.code}</div></div> },
+        { label: "類別", render: p => <Badge cls={productType(p) === "材料" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}>{productType(p)}</Badge> },
+        { label: "單位", render: p => p.unit },
+        { label: "成本", align: "right", render: p => money(p.cost) },
+        { label: "報價單價", align: "right", render: p => <b>{money(p.price)}</b> },
+        {
+          label: "庫存", align: "right", render: p => productType(p) !== "材料" ? <span className="text-slate-300">-</span> : (
+            <span className={num(p.stock) <= num(p.safetyStock) ? "text-rose-600 font-bold" : "font-bold"}>
+              {num(p.stock)} {num(p.stock) <= num(p.safetyStock) && <Badge cls="bg-rose-100 text-rose-700">低庫存</Badge>}
+            </span>
+          )
+        },
+        { label: "安全庫存", align: "right", render: p => productType(p) === "材料" ? num(p.safetyStock) : "-" },
+        {
+          label: "操作", align: "center", actions: true, render: p => (
+            <div className="flex flex-wrap gap-2 justify-center">
+              <ActBtn tone="slate" onClick={() => setEdit(p)}>編輯</ActBtn>
+              <ActBtn tone="rose" onClick={() => del(p)}>刪除</ActBtn>
+            </div>
+          )
+        }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="工項材料與庫存" subtitle="材料庫存會在採購單「收貨入庫」時自動增加">
+            <Seg value={flt} onChange={setFlt} options={[{ value: "all", label: "全部" }, { value: "工項", label: "工項" }, { value: "材料", label: "材料" }]} />
+            <button className={btnPrimary} onClick={() => setEdit("new")}><Icon name="plus" className="w-4 h-4" /> 新增工項 / 材料</button>
+          </PageHeader>
+          <DataList columns={columns} rows={rows} empty="尚無資料" />
+          {edit && <ProductForm initial={edit === "new" ? {} : { ...edit, type: productType(edit) }} onSave={save} onClose={() => setEdit(null)} />}
+        </div>
+      );
+    }
+
+    /* ===================== 採購單 ===================== */
+    function Purchases() {
+      const D = useData();
+      const A = D.api.purchases;
+      const [edit, setEdit] = useState(null);
+      const [pay, setPay] = useState(null);
+      const [kw, setKw] = useState("");
+      const supName = id => (D.suppliers.find(s => s.id === id) || {}).name || "-";
+      const projName = id => (D.quotations.find(q => q.id === id) || {}).projectName || "";
+      const rows = D.purchases.filter(p => !kw || [p.no, supName(p.supplierId), projName(p.projectId)].join(" ").toLowerCase().includes(kw.toLowerCase()));
+
+      const save = data => {
+        if (data.id) A.update(data.id, data);
+        else A.add({ ...data, id: uid("po"), no: nextNo("PO", D.purchases), receiveStatus: "待收貨", payments: [] });
+        setEdit(null);
+      };
+
+      // 同一材料多筆品項先合併，再一次更新庫存
+      const adjustStock = (p, dir) => {
+        const byProduct = {};
+        (p.items || []).forEach(it => { if (it.productId) byProduct[it.productId] = (byProduct[it.productId] || 0) + num(it.quantity); });
+        Object.keys(byProduct).forEach(pid => {
+          const pr = D.products.find(x => x.id === pid);
+          if (pr) D.api.products.update(pid, { stock: num(pr.stock) + dir * byProduct[pid] });
+        });
+      };
+      const receive = (p, undo) => {
+        const msg = undo ? `取消「${p.no}」的入庫？庫存會扣回。` : `確認「${p.no}」已收貨？對應材料的庫存會自動增加。`;
+        if (!confirm(msg)) return;
+        adjustStock(p, undo ? -1 : 1);
+        A.update(p.id, { receiveStatus: undo ? "待收貨" : "已收貨", receivedDate: undo ? "" : today() });
+      };
+      const del = p => {
+        const pays = paymentsOf(p);
+        const received = p.receiveStatus === "已收貨";
+        const msg = `確定刪除採購單「${p.no}」？`
+          + (received ? "\n此單已入庫，庫存會一併扣回。" : "")
+          + (pays.length ? `\n已登錄的 ${pays.length} 筆付款紀錄（含財務收支）也會一併刪除。` : "");
+        if (!confirm(msg)) return;
+        if (received) adjustStock(p, -1);
+        D.transactions.filter(t => t.purchaseId === p.id).forEach(t => D.api.transactions.remove(t.id));
+        A.remove(p.id);
+      };
+      const recordPayment = (p, { date, amount, note }) => {
+        const txId = uid("t");
+        D.api.transactions.add({
+          id: txId, date, type: "expense", category: "材料採購款", amount,
+          note: `${supName(p.supplierId)} (${p.no})${note ? " - " + note : ""}`,
+          refNo: p.no, purchaseId: p.id, projectId: p.projectId || ""
+        });
+        A.update(p.id, { payments: [...paymentsOf(p), { id: uid("pm"), date, amount, note, txId }] });
+        setPay(null);
+      };
+
+      const columns = [
+        { label: "單號", render: p => <span className="font-mono font-bold text-blue-600">{p.no}</span> },
+        { label: "日期", render: p => p.date },
+        { label: "供應商", render: p => <span className="font-bold text-slate-900">{supName(p.supplierId)}</span> },
+        { label: "歸屬工程", render: p => projName(p.projectId) || <span className="text-slate-300">-</span> },
+        { label: "應付金額", align: "right", render: p => <b>{money(p.total)}</b> },
+        {
+          label: "收貨", render: p => <Badge cls={p.receiveStatus === "已收貨" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{p.receiveStatus || "待收貨"}</Badge>
+        },
+        {
+          label: "付款", render: p => { const st = balanceStatus(p.total, sum(paymentsOf(p), x => x.amount), p.dueDate); return <Badge cls={st.cls}>{st.label}</Badge>; }
+        },
+        {
+          label: "操作", align: "center", actions: true, render: p => {
+            const received = p.receiveStatus === "已收貨";
+            const bal = num(p.total) - sum(paymentsOf(p), x => x.amount);
+            return (
+              <div className="flex flex-wrap gap-2 justify-center">
+                {received ? <ActBtn tone="slate" onClick={() => receive(p, true)}>取消入庫</ActBtn> : <ActBtn tone="emerald" onClick={() => receive(p, false)}>收貨入庫</ActBtn>}
+                {bal > 0 && <ActBtn onClick={() => setPay(p)}>登錄付款</ActBtn>}
+                {!received && <ActBtn tone="slate" onClick={() => setEdit(p)}>編輯</ActBtn>}
+                <ActBtn tone="rose" onClick={() => del(p)}>刪除</ActBtn>
+              </div>
+            );
+          }
+        }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="採購單" subtitle="向供應商採購材料：收貨入庫會增加庫存，付款會同步記入財務收支">
+            <SearchBox value={kw} onChange={setKw} placeholder="搜尋單號 / 供應商 / 工程" />
+            <button className={btnPrimary} onClick={() => D.suppliers.length ? setEdit("new") : alert("請先到「供應商」新增至少一家供應商")}><Icon name="plus" className="w-4 h-4" /> 新增採購單</button>
+          </PageHeader>
+          <DataList columns={columns} rows={rows} empty="尚無採購單" />
+          {edit && <PurchaseForm initial={edit === "new" ? {} : edit} onSave={save} onClose={() => setEdit(null)} />}
+          {pay && <PaymentModal title={`登錄付款 - ${pay.no}`} balance={num(pay.total) - sum(paymentsOf(pay), x => x.amount)} onSave={d => recordPayment(pay, d)} onClose={() => setPay(null)} />}
+        </div>
+      );
+    }
+
+    /* ===================== 應收 / 應付 ===================== */
+    function Ledger({ mode, rows, onPay, onDetail }) {
+      const [flt, setFlt] = useState("open");
+      const isAR = mode === "ar";
+      const withSt = rows.map(r => ({ ...r, st: balanceStatus(r.total, r.paid, r.due) }));
+      const totalAll = sum(withSt, r => r.total), paidAll = sum(withSt, r => r.paid);
+      const overdue = withSt.filter(r => r.st.overdue);
+      const shown = withSt.filter(r => flt === "all" ? true : flt === "open" ? r.st.balance > 0 : r.st.balance <= 0);
+      const verb = isAR ? "收" : "付";
+      const columns = [
+        { label: "單號", render: r => <span className="font-mono font-bold text-blue-600">{r.no}</span> },
+        { label: isAR ? "工程" : "歸屬工程", render: r => <span className="font-bold text-slate-900">{r.title}</span> },
+        { label: isAR ? "業主" : "供應商", render: r => r.party },
+        { label: "總額", align: "right", render: r => money(r.total) },
+        { label: `已${verb}`, align: "right", render: r => <span className="text-emerald-600">{money(r.paid)}</span> },
+        { label: `未${verb}`, align: "right", render: r => <b className={r.st.balance > 0 ? "text-rose-600" : "text-slate-400"}>{money(r.st.balance)}</b> },
+        { label: `預計${verb}款日`, render: r => r.due || <span className="text-slate-300">-</span> },
+        { label: "狀態", render: r => <Badge cls={r.st.cls}>{r.st.label}</Badge> },
+        {
+          label: "操作", align: "center", actions: true, render: r => (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {r.st.balance > 0 && <ActBtn onClick={() => onPay(r)}>登錄{verb}款</ActBtn>}
+              <ActBtn tone="slate" onClick={() => onDetail(r)}>{verb}款明細</ActBtn>
+            </div>
+          )
+        }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title={isAR ? "應收帳款" : "應付帳款"} subtitle={isAR ? "依「已成交」的報價單計算，收款會同步記入財務收支" : "依採購單計算，付款會同步記入財務收支"}>
+            <Seg value={flt} onChange={setFlt} options={[{ value: "open", label: "未結清" }, { value: "done", label: "已結清" }, { value: "all", label: "全部" }]} />
+          </PageHeader>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label={isAR ? "應收總額" : "應付總額"} value={money(totalAll)} tone="blue" />
+            <Stat label={`已${verb}`} value={money(paidAll)} tone="emerald" />
+            <Stat label={`未${verb}餘額`} value={money(totalAll - paidAll)} tone="amber" />
+            <Stat label="逾期" value={`${overdue.length} 筆`} tone={overdue.length ? "rose" : "slate"} sub={overdue.length ? money(sum(overdue, r => r.st.balance)) : "無逾期"} />
+          </div>
+          <DataList columns={columns} rows={shown} empty={flt === "open" ? "目前沒有未結清款項 🎉" : "沒有符合的資料"} />
+        </div>
+      );
+    }
+
+    function Receivables() {
+      const D = useData();
+      const [pay, setPay] = useState(null);
+      const [hist, setHist] = useState(null);
+      const rows = arRows(D);
+      const getQ = id => D.quotations.find(x => x.id === id);
+      const recordReceipt = (q, { date, amount, note }) => {
+        const base = receiptsOf(q, D.transactions);
+        const txId = uid("t");
+        const cust = (D.customers.find(c => c.id === q.customerId) || {}).name || "";
+        D.api.transactions.add({
+          id: txId, date, type: "income", category: "工程款收入", amount,
+          note: `${cust} (${q.no})${note ? " - " + note : ""}`, refNo: q.no, projectId: q.id
+        });
+        D.api.quotations.update(q.id, { receipts: [...base, { id: uid("r"), date, amount, note, txId }] });
+        setPay(null);
+      };
+      const deleteReceipt = (q, rid) => {
+        const base = receiptsOf(q, D.transactions);
+        const r = base.find(x => x.id === rid);
+        if (r && r.txId) D.api.transactions.remove(r.txId);
+        D.api.quotations.update(q.id, { receipts: base.filter(x => x.id !== rid) });
+      };
+      const pq = pay && getQ(pay), hq = hist && getQ(hist);
+      return (
+        <>
+          <Ledger mode="ar" rows={rows} onPay={r => setPay(r.id)} onDetail={r => setHist(r.id)} />
+          {pq && <PaymentModal title={`登錄收款 - ${pq.no}`} balance={num(pq.total) - sum(receiptsOf(pq, D.transactions), r => r.amount)} onSave={d => recordReceipt(pq, d)} onClose={() => setPay(null)} />}
+          {hq && <PaymentHistory title={`收款明細 - ${hq.no}`} entries={receiptsOf(hq, D.transactions)} onDelete={rid => deleteReceipt(hq, rid)} onClose={() => setHist(null)} />}
+        </>
+      );
+    }
+
+    function Payables() {
+      const D = useData();
+      const [pay, setPay] = useState(null);
+      const [hist, setHist] = useState(null);
+      const rows = apRows(D);
+      const getP = id => D.purchases.find(x => x.id === id);
+      const supName = id => (D.suppliers.find(s => s.id === id) || {}).name || "";
+      const recordPayment = (p, { date, amount, note }) => {
+        const txId = uid("t");
+        D.api.transactions.add({
+          id: txId, date, type: "expense", category: "材料採購款", amount,
+          note: `${supName(p.supplierId)} (${p.no})${note ? " - " + note : ""}`, refNo: p.no, purchaseId: p.id, projectId: p.projectId || ""
+        });
+        D.api.purchases.update(p.id, { payments: [...paymentsOf(p), { id: uid("pm"), date, amount, note, txId }] });
+        setPay(null);
+      };
+      const deletePayment = (p, pid) => {
+        const base = paymentsOf(p);
+        const r = base.find(x => x.id === pid);
+        if (r && r.txId) D.api.transactions.remove(r.txId);
+        D.api.purchases.update(p.id, { payments: base.filter(x => x.id !== pid) });
+      };
+      const pp = pay && getP(pay), hp = hist && getP(hist);
+      return (
+        <>
+          <Ledger mode="ap" rows={rows} onPay={r => setPay(r.id)} onDetail={r => setHist(r.id)} />
+          {pp && <PaymentModal title={`登錄付款 - ${pp.no}`} balance={num(pp.total) - sum(paymentsOf(pp), x => x.amount)} onSave={d => recordPayment(pp, d)} onClose={() => setPay(null)} />}
+          {hp && <PaymentHistory title={`付款明細 - ${hp.no}`} entries={paymentsOf(hp)} onDelete={pid => deletePayment(hp, pid)} onClose={() => setHist(null)} />}
+        </>
+      );
+    }
+
+    /* ===================== 財務收支 ===================== */
+    function Finance() {
+      const D = useData();
+      const [adding, setAdding] = useState(false);
+      const [month, setMonth] = useState("all");
+      const months = Array.from(new Set([today().slice(0, 7), ...D.transactions.map(t => monthOf(t.date))])).filter(Boolean).sort().reverse();
+      const linked = useMemo(() => new Set(D.quotations.flatMap(q => receiptsOf(q, D.transactions).map(r => r.txId))), [D.quotations, D.transactions]);
+      const list = D.transactions.filter(t => month === "all" || monthOf(t.date) === month).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      const inc = sum(list.filter(t => t.type === "income"), t => t.amount);
+      const exp = sum(list.filter(t => t.type === "expense"), t => t.amount);
+      const projName = id => (D.quotations.find(q => q.id === id) || {}).projectName || "";
+      const isLinked = t => linked.has(t.id) || !!t.purchaseId || t.kind === "payroll";
+      const del = t => {
+        if (isLinked(t)) return alert("這筆是由「應收 / 應付 / 薪資」連動產生的，請到對應頁面刪除或取消，帳務才會一致。");
+        if (confirm("確定刪除這筆收支？")) D.api.transactions.remove(t.id);
+      };
+      const columns = [
+        { label: "日期", render: t => <span className="text-slate-500">{t.date}</span> },
+        { label: "類型", render: t => <Badge cls={t.type === "income" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}>{t.type === "income" ? "收入" : "支出"}</Badge> },
+        { label: "分類", render: t => <span className="font-medium">{t.category}{isLinked(t) && <span className="ml-1 text-[10px] text-slate-400">（連動）</span>}</span> },
+        { label: "說明", render: t => <span className="text-slate-600 break-words">{t.note}</span> },
+        { label: "歸屬工程", render: t => projName(t.projectId) || <span className="text-slate-300">-</span> },
+        { label: "金額", align: "right", render: t => <b className={t.type === "income" ? "text-emerald-600" : "text-rose-600"}>{t.type === "income" ? "+" : "-"} {money(t.amount)}</b> },
+        { label: "操作", align: "center", actions: true, render: t => <ActBtn tone="rose" onClick={() => del(t)}>刪除</ActBtn> }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="財務收支" subtitle="收款、付款、薪資會自動記入；其他雜支可手動記帳">
+            <select className={inputCls + " !w-auto"} value={month} onChange={e => setMonth(e.target.value)}>
+              <option value="all">全部期間</option>
+              {months.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <button className={btnPrimary} onClick={() => setAdding(true)}><Icon name="plus" className="w-4 h-4" /> 手動記帳</button>
+          </PageHeader>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="收入" value={money(inc)} tone="emerald" />
+            <Stat label="支出" value={money(exp)} tone="rose" />
+            <Stat label="淨額" value={money(inc - exp)} tone={inc - exp >= 0 ? "blue" : "rose"} />
+          </div>
+          <DataList columns={columns} rows={list} empty="這個期間沒有收支紀錄" />
+          {adding && <TransactionForm onSave={t => { D.api.transactions.add(t); setAdding(false); }} onClose={() => setAdding(false)} />}
+        </div>
+      );
+    }
+
+    /* ===================== 員工 ===================== */
+    function Employees() {
+      const D = useData();
+      const A = D.api.employees;
+      const [edit, setEdit] = useState(null);
+      const save = data => {
+        if (data.id) A.update(data.id, data); else A.add({ ...data, id: uid("e") });
+        setEdit(null);
+      };
+      const del = e => {
+        if (D.timesheets.some(t => t.employeeId === e.id)) return alert("此員工已有出工紀錄，無法刪除。請改為「離職」狀態保留歷史資料。");
+        if (confirm(`確定刪除員工「${e.name}」？`)) A.remove(e.id);
+      };
+      const columns = [
+        { label: "姓名", render: e => <span className="font-bold text-slate-900">{e.name}</span> },
+        { label: "職稱", render: e => e.title || "-" },
+        { label: "電話", render: e => <span className="font-mono">{e.phone || "-"}</span> },
+        { label: "計薪方式", render: e => e.payType },
+        { label: "薪資基準", align: "right", render: e => money(e.rate) },
+        { label: "換算時薪", align: "right", render: e => <span className="text-slate-500">{money(hourlyOf(e))}</span> },
+        { label: "狀態", render: e => <Badge cls={e.active === false ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800"}>{e.active === false ? "離職" : "在職"}</Badge> },
+        {
+          label: "操作", align: "center", actions: true, render: e => (
+            <div className="flex flex-wrap gap-2 justify-center">
+              <ActBtn tone="slate" onClick={() => setEdit(e)}>編輯</ActBtn>
+              <ActBtn tone="rose" onClick={() => del(e)}>刪除</ActBtn>
+            </div>
+          )
+        }
+      ];
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="員工名冊" subtitle={`在職 ${D.employees.filter(e => e.active !== false).length} 人`}>
+            <button className={btnPrimary} onClick={() => setEdit("new")}><Icon name="plus" className="w-4 h-4" /> 新增員工</button>
+          </PageHeader>
+          <DataList columns={columns} rows={D.employees} empty="尚無員工資料，點右上角新增" />
+          {edit && <EmployeeForm initial={edit === "new" ? {} : edit} onSave={save} onClose={() => setEdit(null)} />}
+        </div>
+      );
+    }
+
+    /* ===================== 工時與薪資 ===================== */
+    function Timesheets() {
+      const D = useData();
+      const [view, setView] = useState("sheets");
+      const [month, setMonth] = useState(today().slice(0, 7));
+      const [adding, setAdding] = useState(false);
+      const [payroll, setPayroll] = useState(null);
+      const empName = id => (D.employees.find(e => e.id === id) || {}).name || "（已刪除）";
+      const projName = id => (D.quotations.find(q => q.id === id) || {}).projectName || "";
+      const monthSheets = D.timesheets.filter(t => monthOf(t.date) === month);
+      const sheetRows = monthSheets.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+      const addSheets = list => { list.forEach(t => D.api.timesheets.add(t)); setAdding(false); };
+
+      const sheetCols = [
+        { label: "日期", render: t => t.date },
+        { label: "員工", render: t => <span className="font-bold text-slate-900">{empName(t.employeeId)}</span> },
+        { label: "工程", render: t => projName(t.projectId) || <span className="text-slate-400">公司內務</span> },
+        { label: "工時", align: "right", render: t => `${num(t.hours)} 小時` },
+        { label: "人工成本", align: "right", render: t => money(t.cost) },
+        { label: "備註", render: t => <span className="text-slate-500">{t.note}</span> },
+        { label: "操作", align: "center", actions: true, render: t => <ActBtn tone="rose" onClick={() => { if (confirm("確定刪除這筆出工紀錄？")) D.api.timesheets.remove(t.id); }}>刪除</ActBtn> }
+      ];
+
+      // 薪資結算
+      const payRows = D.employees
+        .map(e => {
+          const mine = monthSheets.filter(t => t.employeeId === e.id);
+          const hours = sum(mine, t => t.hours);
+          const amount = e.payType === "月薪" ? num(e.rate) : sum(mine, t => t.cost);
+          const key = `${month}_${e.id}`;
+          const tx = D.transactions.find(t => t.kind === "payroll" && t.payrollKey === key);
+          return { id: e.id, e, hours, amount, key, tx, show: e.active !== false || hours > 0 };
+        })
+        .filter(r => r.show && (r.amount > 0 || r.hours > 0 || r.tx));
+      const totalDue = sum(payRows, r => r.amount);
+      const totalPaid = sum(payRows, r => r.tx ? r.tx.amount : 0);
+
+      const pay = (r, { date, amount, note }) => {
+        D.api.transactions.add({
+          id: uid("t"), date, type: "expense", category: "薪資支出", amount,
+          note: `${month} ${r.e.name} 薪資${note ? " - " + note : ""}`, refNo: "", kind: "payroll", payrollKey: r.key
+        });
+        setPayroll(null);
+      };
+      const payCols = [
+        { label: "員工", render: r => <span className="font-bold text-slate-900">{r.e.name}{r.e.active === false && <span className="text-xs text-slate-400">（離職）</span>}</span> },
+        { label: "計薪方式", render: r => `${r.e.payType} ${money(r.e.rate)}` },
+        { label: "出工時數", align: "right", render: r => `${r.hours} 小時` },
+        { label: "出工天數", align: "right", render: r => `${(r.hours / 8).toFixed(1)} 天` },
+        { label: "應發薪資", align: "right", render: r => <b>{money(r.amount)}</b> },
+        { label: "狀態", render: r => r.tx ? <Badge cls="bg-emerald-100 text-emerald-800">已發放 {r.tx.date}（{money(r.tx.amount)}）</Badge> : <Badge cls="bg-amber-100 text-amber-800">未發放</Badge> },
+        {
+          label: "操作", align: "center", actions: true, render: r => r.tx
+            ? <ActBtn tone="slate" onClick={() => { if (confirm("取消發放？對應的財務支出會一併刪除。")) D.api.transactions.remove(r.tx.id); }}>取消發放</ActBtn>
+            : <ActBtn onClick={() => setPayroll(r)}>發放薪資</ActBtn>
+        }
+      ];
+
+      return (
+        <div className="space-y-4 max-w-6xl">
+          <PageHeader title="工時與薪資" subtitle="出工紀錄會自動計入各工程的人工成本">
+            <input type="month" className={inputCls + " !w-auto"} value={month} onChange={e => setMonth(e.target.value)} />
+            {view === "sheets" && <button className={btnPrimary} onClick={() => D.employees.length ? setAdding(true) : alert("請先到「員工名冊」新增員工")}><Icon name="plus" className="w-4 h-4" /> 新增出工登記</button>}
+          </PageHeader>
+          <Seg value={view} onChange={setView} options={[{ value: "sheets", label: "出工紀錄" }, { value: "payroll", label: "薪資結算" }]} />
+          {view === "sheets" ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="本月總工時" value={`${sum(monthSheets, t => t.hours)} 小時`} sub={`約 ${(sum(monthSheets, t => t.hours) / 8).toFixed(1)} 人天`} tone="blue" />
+                <Stat label="本月人工成本" value={money(sum(monthSheets, t => t.cost))} tone="amber" />
+              </div>
+              <DataList columns={sheetCols} rows={sheetRows} empty="這個月還沒有出工紀錄" />
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="本月應發薪資" value={money(totalDue)} tone="blue" />
+                <Stat label="已發放" value={money(totalPaid)} tone="emerald" />
+              </div>
+              <div className="text-xs text-slate-500">日薪 / 時薪依出工時數計算；月薪固定發放月薪金額。</div>
+              <DataList columns={payCols} rows={payRows} empty="這個月沒有需要結算的薪資" />
+            </>
+          )}
+          {adding && <TimesheetForm onSave={addSheets} onClose={() => setAdding(false)} />}
+          {payroll && <PayrollModal emp={payroll.e} month={month} suggested={payroll.amount} onSave={d => pay(payroll, d)} onClose={() => setPayroll(null)} />}
+        </div>
+      );
+    }
+
+    /* ===================== 設定 ===================== */
+    function Settings({ onLock, connectCloud }) {
+      const D = useData();
+      const [d, setD] = useState(D.company);
+      const [fb, setFb] = useState(D.fbConfigStr);
+      const fileRef = useRef(null);
+      useEffect(() => { setD(D.company); }, [D.company]);
+      const set = k => e => setD(p => ({ ...p, [k]: e.target.value }));
+
+      const saveCompany = () => { D.saveCompany({ ...d, name: d.name.trim() || "我的公司" }); alert("公司資料已儲存"); };
+
+      const exportAll = () => {
+        const payload = { app: "changxing-erp", exportedAt: new Date().toISOString(), company: D.company };
+        ["customers", "suppliers", "products", "quotations", "purchases", "employees", "timesheets", "transactions"].forEach(k => { payload[k] = D[k]; });
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `長興ERP備份_${today()}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      };
+      const importAll = e => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const p = JSON.parse(reader.result);
+            if (p.app !== "changxing-erp") throw new Error("這不是本系統的備份檔");
+            if (!confirm("匯入會「覆蓋」目前所有資料（若已連雲端，雲端也會被覆蓋）。確定繼續？")) return;
+            for (const k of ["customers", "suppliers", "products", "quotations", "purchases", "employees", "timesheets", "transactions"]) {
+              if (Array.isArray(p[k])) await D.api[k].replaceAll(p[k]);
+            }
+            if (p.company) D.saveCompany({ ...D.company, ...p.company });
+            alert("匯入完成");
+          } catch (err) { alert("匯入失敗：" + err.message); }
+        };
+        reader.readAsText(file);
+        e.target.value = "";
+      };
+
+      return (
+        <div className="space-y-4 max-w-4xl">
+          <PageHeader title="公司設定 / 雲端同步" subtitle="這些資料會顯示在報價單抬頭與匯款資訊" />
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 space-y-4 shadow-sm">
+            <h3 className="font-bold text-slate-800 text-sm">公司基本資料</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="廠商名稱（抬頭）"><input className={inputCls + " font-bold"} value={d.name || ""} onChange={set("name")} /></Field>
+              <Field label="統一編號"><input className={inputCls} inputMode="numeric" value={d.taxId || ""} onChange={set("taxId")} /></Field>
+              <Field label="負責人 / 聯絡人"><input className={inputCls} value={d.contact || ""} onChange={set("contact")} /></Field>
+              <Field label="聯絡電話"><input className={inputCls} inputMode="tel" value={d.phone || ""} onChange={set("phone")} /></Field>
+              <Field label="Email"><input type="email" className={inputCls} value={d.email || ""} onChange={set("email")} /></Field>
+              <Field label="營業地址"><input className={inputCls} value={d.address || ""} onChange={set("address")} /></Field>
+              <Field label="匯款銀行"><input className={inputCls} value={d.bankName || ""} onChange={set("bankName")} /></Field>
+              <Field label="匯款帳號"><input className={inputCls} inputMode="numeric" value={d.bankAccount || ""} onChange={set("bankAccount")} /></Field>
+              <Field label="戶名" className="sm:col-span-2"><input className={inputCls} value={d.bankOwner || ""} onChange={set("bankOwner")} /></Field>
+            </div>
+            <hr />
+            <h3 className="font-bold text-slate-800 text-sm">系統登入密碼</h3>
+            <Field label="登入密碼" hint="清空代表不需要密碼。這是方便的簡易鎖，不能取代雲端權限設定。">
+              <input className={inputCls + " font-mono"} value={d.password || ""} onChange={set("password")} />
+            </Field>
+            <button className={btnPrimary} onClick={saveCompany}>儲存公司資料與密碼</button>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 space-y-3 shadow-sm">
+            <h3 className="font-bold text-slate-800 text-sm">Google Firebase 雲端同步</h3>
+            <div className="text-sm">目前狀態：<b>{D.cloud.text}</b></div>
+            <textarea rows="6" className={inputCls + " font-mono !text-xs"} placeholder={'貼上 Firebase 設定，例如：\n{ "apiKey": "...", "authDomain": "...", "projectId": "...", ... }\n（直接貼 Firebase 主控台的 firebaseConfig 也可以）\n留空 = 只存在這台裝置'} value={fb} onChange={e => setFb(e.target.value)} />
+            <div className="text-xs text-slate-500 space-y-1">
+              <div>1. 到 Firebase 主控台建立專案，並啟用 Firestore Database。</div>
+              <div>2. 專案設定 → 加入網頁應用程式，複製 firebaseConfig 貼到上方。</div>
+              <div>3. Firestore 規則需允許讀寫，否則會顯示「權限不足」。</div>
+              <div>首次連線時，若雲端是空的，會自動把這台裝置的資料上傳；之後所有裝置共用同一份資料。</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className={btnPrimary} onClick={() => connectCloud(fb)}>儲存並連接雲端</button>
+              {D.fbConfigStr && <button className={btnGhost} onClick={() => { if (confirm("中斷雲端連線？資料仍保留在這台裝置。")) connectCloud(""); }}>中斷連線</button>}
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 space-y-3 shadow-sm">
+            <h3 className="font-bold text-slate-800 text-sm">備份與還原</h3>
+            <div className="text-xs text-slate-500">建議定期備份。備份檔包含所有報價、客戶、採購、員工與帳務資料。</div>
+            <div className="flex flex-wrap gap-2">
+              <button className={btnGhost} onClick={exportAll}><Icon name="download" className="w-4 h-4" /> 匯出備份</button>
+              <button className={btnGhost} onClick={() => fileRef.current && fileRef.current.click()}><Icon name="upload" className="w-4 h-4" /> 匯入備份</button>
+              <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={importAll} />
+              {D.company.password && <button className={btnGhost} onClick={onLock}><Icon name="lock" className="w-4 h-4" /> 立即鎖定</button>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===================== 登入畫面 ===================== */
+    function LoginScreen({ company, onUnlock }) {
+      const [pw, setPw] = useState("");
+      const submit = () => { if (pw === company.password) onUnlock(); else alert("密碼錯誤，請重新輸入！"); };
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto"><Icon name="lock" /></div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">{company.name}</h1>
+              <p className="text-slate-500 text-sm mt-1">ERP 管理系統 - 請輸入登入密碼</p>
+              {company.password === "123" && <p className="text-xs text-amber-600 mt-2">目前是預設密碼 123，登入後請到「公司設定」修改。</p>}
+            </div>
+            <div className="space-y-4">
+              <input type="password" placeholder="輸入登入密碼" value={pw} autoFocus
+                onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()}
+                className="w-full border rounded-xl p-3 text-center text-lg outline-none focus:ring-2 ring-blue-500 bg-slate-50" />
+              <button onClick={submit} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow transition">解鎖進入系統</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===================== 主程式 ===================== */
+    function App() {
+      const [fbConfigStr] = useState(() => localStorage.getItem("firebase_config") || "");
+      const [db, setDb] = useState(null);
+      const [cloud, setCloud] = useState({ ok: false, text: "本機模式（資料只存在這台裝置）" });
+
+      useEffect(() => {
+        if (!fbConfigStr.trim()) return;
+        try {
+          if (typeof firebase === "undefined") throw new Error("Firebase 元件載入失敗，請檢查網路");
+          const cfg = parseFirebaseConfig(fbConfigStr);
+          if (!cfg.projectId) throw new Error("設定中缺少 projectId");
+          if (!firebase.apps.length) firebase.initializeApp(cfg);
+          setDb(firebase.firestore());
+          setCloud({ ok: true, text: "🟢 雲端同步中" });
+        } catch (e) {
+          setCloud({ ok: false, text: "🔴 Firebase 設定有誤：" + e.message });
+        }
+      }, []);
+
+      useEffect(() => {
+        const h = e => setCloud({ ok: false, text: e.detail === "permission-denied" ? "🔴 雲端權限不足，請檢查 Firestore 規則" : "🔴 雲端連線錯誤（" + e.detail + "）" });
+        window.addEventListener("cloud-error", h);
+        return () => window.removeEventListener("cloud-error", h);
+      }, []);
+
+      const [company, saveCompany] = useCloudDoc("company", defaultCompany, db);
+      const [customers, customersApi] = useCloudList("customers", initialCustomers, db);
+      const [suppliers, suppliersApi] = useCloudList("suppliers", [], db);
+      const [products, productsApi] = useCloudList("products", initialProducts, db);
+      const [quotations, quotationsApi] = useCloudList("quotations", initialQuotations, db);
+      const [purchases, purchasesApi] = useCloudList("purchases", [], db);
+      const [employees, employeesApi] = useCloudList("employees", [], db);
+      const [timesheets, timesheetsApi] = useCloudList("timesheets", [], db);
+      const [transactions, transactionsApi] = useCloudList("transactions", initialTransactions, db);
+
+      const [unlocked, setUnlocked] = useState(() => { try { return sessionStorage.getItem("erp_unlocked") === "1"; } catch (e) { return false; } });
+      const [tab, setTab] = useState(() => {
+        const h = (location.hash || "").replace("#", "");
+        return NAV_FLAT.some(n => n.id === h) ? h : "dashboard";
+      });
+      const [navOpen, setNavOpen] = useState(false);
+      const [previewId, setPreviewId] = useState(null);
+      const mainRef = useRef(null);
+
+      const go = t => {
+        setTab(t); setNavOpen(false);
+        try { history.replaceState(null, "", "#" + t); } catch (e) { /* ignore */ }
+      };
+      useEffect(() => { if (mainRef.current) mainRef.current.scrollTop = 0; }, [tab]);
+      useEffect(() => {
+        const h = () => { if (window.innerWidth >= 768) setNavOpen(false); };
+        window.addEventListener("resize", h);
+        return () => window.removeEventListener("resize", h);
+      }, []);
+
+      const unlock = () => { try { sessionStorage.setItem("erp_unlocked", "1"); } catch (e) { /* ignore */ } setUnlocked(true); };
+      const lock = () => { try { sessionStorage.removeItem("erp_unlocked"); } catch (e) { /* ignore */ } setUnlocked(false); };
+
+      const connectCloud = str => {
+        try {
+          if (str.trim()) { const c = parseFirebaseConfig(str); if (!c.projectId) throw new Error("設定中缺少 projectId"); }
+        } catch (e) { alert("Firebase 設定格式有誤：" + e.message); return; }
+        localStorage.setItem("firebase_config", str.trim());
+        location.reload();
+      };
+
+      const D = {
+        company, saveCompany, customers, suppliers, products, quotations, purchases, employees, timesheets, transactions,
+        fbConfigStr, cloud,
+        api: {
+          customers: customersApi, suppliers: suppliersApi, products: productsApi, quotations: quotationsApi,
+          purchases: purchasesApi, employees: employeesApi, timesheets: timesheetsApi, transactions: transactionsApi
+        }
+      };
+
+      if (company.password && !unlocked) return <LoginScreen company={company} onUnlock={unlock} />;
+
+      const pages = {
+        dashboard: <Dashboard go={go} />,
+        quotations: <Quotations onPreview={setPreviewId} />,
+        projects: <Projects />,
+        customers: <PartyPage kind="customers" />,
+        suppliers: <PartyPage kind="suppliers" />,
+        purchases: <Purchases />,
+        products: <Products />,
+        receivables: <Receivables />,
+        payables: <Payables />,
+        finance: <Finance />,
+        employees: <Employees />,
+        timesheets: <Timesheets />,
+        settings: <Settings onLock={lock} connectCloud={connectCloud} />
+      };
+      const current = NAV_FLAT.find(n => n.id === tab) || NAV_FLAT[0];
+
+      return (
+        <DataCtx.Provider value={D}>
+          <div className="flex overflow-hidden relative h-screen" style={{ height: "100dvh" }}>
+            {navOpen && <div onClick={() => setNavOpen(false)} className="fixed inset-0 bg-black/50 z-30 md:hidden no-print"></div>}
+
+            <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-60 shrink-0 bg-slate-900 text-slate-200 flex flex-col p-3 no-print transform transition-transform duration-200 ease-in-out ${navOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}>
+              <div className="flex items-center justify-between gap-3 px-2 py-3 border-b border-slate-800 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded bg-blue-600 font-bold flex items-center justify-center text-white text-xs shrink-0">長興</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-base text-white truncate">{company.name}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 break-words leading-tight">{cloud.text}</div>
+                  </div>
+                </div>
+                <button onClick={() => setNavOpen(false)} className="md:hidden text-slate-400 hover:text-white p-1 shrink-0"><Icon name="x" /></button>
+              </div>
+
+              <nav className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+                {NAV.map(g => (
+                  <div key={g.group}>
+                    <div className="px-3 mb-1 text-[11px] font-bold tracking-wider text-slate-500">{g.group}</div>
+                    <div className="space-y-0.5">
+                      {g.items.map(n => (
+                        <button key={n.id} type="button" onClick={() => go(n.id)}
+                          className={`relative z-10 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition select-none text-left ${tab === n.id ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+                          <Icon name={n.icon} className="w-5 h-5 shrink-0" />
+                          <span className="leading-tight">{n.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+
+              {company.password && (
+                <div className="shrink-0 pt-2">
+                  <button onClick={lock} className="w-full text-xs text-slate-400 hover:text-rose-400 p-2 text-center border border-slate-800 rounded">🔒 鎖定系統</button>
+                </div>
+              )}
+            </aside>
+
+            <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 no-print">
+              <div className="flex items-center gap-3 mb-4 md:hidden">
+                <button onClick={() => setNavOpen(true)} className="p-2 rounded-lg bg-slate-900 text-white shadow shrink-0"><Icon name="menu" /></button>
+                <span className="font-bold text-slate-800 truncate">{current.label}</span>
+              </div>
+              {pages[tab]}
+            </main>
+
+            {previewId && <QuotePreview qid={previewId} onClose={() => setPreviewId(null)} />}
+          </div>
+        </DataCtx.Provider>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App /></ErrorBoundary>);
+  </script>
+</body>
+</html>
